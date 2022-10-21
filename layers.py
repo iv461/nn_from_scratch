@@ -55,7 +55,7 @@ class Linear(Module):
     def forward(self, x):
         assert x.shape[0] == self.in_features
         print(f"{self.wheight.shape}, {x.shape}")
-        return np.tensordot(self.wheight, x, axes=1) + self.bias
+        return np.tensordot(x, self.wheight, axes=1) + self.bias
 
 
 class ReLu(Module):
@@ -82,11 +82,12 @@ class Sequential(Module):
 
 def test_linear():
 
-    l = Linear(in_features=4, out_features=1)
+    in_dim = 9
+    l = Linear(in_features=in_dim, out_features=2)
 
     print(f"Linear layer: w: {l.wheight}, b: {l.bias}")
 
-    x = np.arange(4)
+    x = np.arange(in_dim)
     res = l.forward(x)
 
     print(f"res: {res}")
