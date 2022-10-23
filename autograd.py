@@ -174,7 +174,8 @@ class ReverseModeDualNumber:
             raise Exception(
                 f"Add with {other} of type {type(other)} not supported")
         self.append_binary_op("+", other.current_node)
-        return ReverseModeDualNumber(self.val + other.val, f"i{self.name}+{other.name}", False, self.current_node)
+        self.val += other.val
+        return self
 
     def __radd__(self, other):
         return type(self).__add__(self, other)
@@ -183,7 +184,8 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Sub with {type(other)} not supported")
         self.append_binary_op("-", other.current_node)
-        return ReverseModeDualNumber(self.val - other.val, f"i{self.name}-{other.name}", False, self.current_node)
+        self.val -= other.val
+        return self
 
     def __rsub__(self, other):
         return type(self).__sub__(self, other)
@@ -192,7 +194,8 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
         self.append_binary_op("*", other.current_node)
-        return ReverseModeDualNumber(self.val * other.val, f"i{self.name}*{other.name}", False, self.current_node)
+        self.val *= other.val
+        return self
 
     def __rmul__(self, other):
         return type(self).__mul__(self, other)
@@ -201,7 +204,8 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
         self.append_binary_op("*", other.current_node)
-        return ReverseModeDualNumber(self.val / other.val, f"i{self.name}/{other.name}", False, self.current_node)
+        self.val / other.val
+        return self
 
 
 class Perceptron():
