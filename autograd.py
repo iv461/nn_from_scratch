@@ -5,6 +5,8 @@ import math
 
 import matplotlib
 import matplotlib.pyplot as plt
+import pydot
+from networkx.drawing.nx_pydot import graphviz_layout
 
 from dataclasses import dataclass
 
@@ -108,13 +110,14 @@ class ComputationGraph:
         # TODO we add the id to the name to make the NX nodes unique
         self.vertices.append(v)
         print(f"Adding node {v.name}")
-        self.nx_graph.add_node(v.id, name=v.name)
+        # attribute with the key "'name'" collides when converting to dot with pydot, thus we name id "ag_name"
+        self.nx_graph.add_node(v.id, ag_name=v.name)
 
     def insert_edge(self, from_v: Node, to_v: Node):
         edge_cnt = len(self.edges)
         self.edges.append((from_v, to_v))
         print(f"Adding edge from {from_v.name} to {to_v.name}")
-        self.nx_graph.add_edge(from_v.id, to_v.id, name=f"e{edge_cnt}")
+        self.nx_graph.add_edge(from_v.id, to_v.id, ag_name=f"e{edge_cnt}")
 
     def insert_new_vertex_with_edge(self, from_v: Node, to_v: Node):
         self.insert_vertex(to_v)
@@ -130,12 +133,13 @@ class ComputationGraph:
                 return "#E6BF00"
         v_colors = [node_type_to_color(
             self.vertices[node]) for node, attributes in self.nx_graph.nodes(data=True)]
-        pos = nx.planar_layout(self.nx_graph)
+        #pos = nx.planar_layout(self.nx_graph)
+        pos = graphviz_layout(self.nx_graph, prog="dot")
         nx.draw_networkx_nodes(
             self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=300)
         nx.draw_networkx_edges(
             self.nx_graph, pos=pos)
-        node_labels = {node: attributes["name"]
+        node_labels = {node: attributes["ag_name"]
                        for node, attributes in self.nx_graph.nodes(data=True)}
         nx.draw_networkx_labels(self.nx_graph, pos=pos, labels=node_labels,
                                 font_color='black', font_size=7, font_weight="bold")
