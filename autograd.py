@@ -93,13 +93,12 @@ class ComputationGraph:
         v_cnt = len(self.vertices)
         v.id = v_cnt
         self.vertices.append(v)
-        print(f"Adding node {v} with {v.id}")
         self.nx_graph.add_node(v.name, id=v_cnt)
 
     def insert_edge(self, from_v: Node, to_v: Node):
         edge_cnt = len(self.edges)
         self.edges.append((from_v, to_v))
-        self.nx_graph.add_edge(from_v.id, to_v.id, name=f"e{edge_cnt}")
+        self.nx_graph.add_edge(from_v.name, to_v.name, name=f"e{edge_cnt}")
 
     def insert_new_vertex_with_edge(self, from_v: Node, to_v: Node):
         self.insert_vertex(to_v)
@@ -113,12 +112,11 @@ class ComputationGraph:
                 return "#0044cc"
             elif type(node) is OpNode:
                 return "#E6BF00"
-        for node, attributes in self.nx_graph.nodes.items():
-            print(f"attr: {attributes}")
         v_colors = [node_type_to_color(
             self.vertices[attributes["id"]]) for node, attributes in self.nx_graph.nodes(data=True)]
         pos = nx.spring_layout(self.nx_graph)
-        nx.draw_networkx_nodes(self.nx_graph, pos=pos, node_color=v_colors)
+        nx.draw_networkx_nodes(
+            self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=600)
         nx.draw_networkx_edges(
             self.nx_graph, pos=pos)
         nx.draw_networkx_labels(self.nx_graph, pos=pos, font_color='w')
@@ -128,15 +126,19 @@ class ReverseModeDualNumber:
 
     comp_graph = ComputationGraph()
 
-    def __init__(self, val: float, name, variable=True) -> None:
+    def __init__(self, val: float, name, variable=True, parent=None) -> None:
         self.val = val
         self.name = name
         if variable:
             self.current_node = VariableNode(name)
         else:
             self.current_node = ConstantNode(name)
-        ReverseModeDualNumber.comp_graph.insert_vertex(
-            self.current_node)
+        if parent:
+            ReverseModeDualNumber.comp_graph.insert_new_vertex_with_edge(
+                parent, self.current_node)
+        else:
+            ReverseModeDualNumber.comp_graph.insert_vertex(
+                self.current_node)
 
     def backward(self):
         pass
@@ -163,8 +165,7 @@ class ReverseModeDualNumber:
             raise Exception(
                 f"Add with {other} of type {type(other)} not supported")
         self.append_binary_op("+", other.current_node)
-        self.val += other.val
-        return self
+        return ReverseModeDualNumber(self.val + other.val, f"i{self.name}+{other.name}", False, self.current_node)
 
     def __radd__(self, other):
         return type(self).__add__(self, other)
@@ -173,8 +174,7 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Sub with {type(other)} not supported")
         self.append_binary_op("-", other.current_node)
-        self.val -= other.val
-        return self
+        return ReverseModeDualNumber(self.val - other.val, f"i{self.name}-{other.name}", False, self.current_node)
 
     def __rsub__(self, other):
         return type(self).__sub__(self, other)
@@ -183,9 +183,7 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
         self.append_binary_op("*", other.current_node)
-
-        self.val *= other.val
-        return self
+        return ReverseModeDualNumber(self.val * other.val, f"i{self.name}*{other.name}", False, self.current_node)
 
     def __rmul__(self, other):
         return type(self).__mul__(self, other)
@@ -194,8 +192,7 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
         self.append_binary_op("*", other.current_node)
-        self.val /= other.val
-        return self
+        return ReverseModeDualNumber(self.val / other.val, f"i{self.name}/{other.name}", False, self.current_node)
 
 
 class Perceptron():
@@ -217,6 +214,9 @@ class Perceptron():
         assert len(x) == self.in_features
         x_dual_num = [ReverseModeDualNumber(
             x_i, f"x_{i}", variable=False) for i, x_i in enumerate(x)]
+
+        for node, attr in ReverseModeDualNumber.comp_graph.nx_graph.nodes(data=True):
+            print(f"node {node} has attr {attr}")
 
         dot_prod = x_dual_num[0] * self.wheight[0]
         for i, (x_i, w_i) in enumerate(zip(x_dual_num, self.wheight)):
