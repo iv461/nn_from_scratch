@@ -1,5 +1,4 @@
 import functools
-from lib2to3.pgen2.token import OP
 import networkx as nx
 import numpy as np
 import math
@@ -9,8 +8,13 @@ import matplotlib.pyplot as plt
 
 from dataclasses import dataclass
 
+from typing import List, Union, Deque, Dict
+
 
 class DualNumber:
+    """
+    For forward-mode AD
+    """
 
     def __init__(self, _x, _dx=0.):
         if type(_x) is DualNumber:
@@ -55,7 +59,11 @@ class DualNumber:
 
 
 class Node:
-    def __init__(self, parents, child, name) -> None:
+    def __init__(self, parents, child, name: str) -> None:
+        if parents is not None:
+            if isinstance(parents, list):
+                if not all(map(lambda parent: isinstance(parent, Node), parents)):
+                    raise Exception("All parents have to be other nodes")
         self.parents = parents
         self.child = child
         self.name = name
@@ -72,39 +80,41 @@ class OpNode(Node):
     def __init__(self, parents, child, op) -> None:
         super().__init__(parents, child, op)
         self.operation = op
+        # intermediate result, cached
+        self.result = None
 
 
 class VariableNode(Node):
-    def __init__(self, name) -> None:
+    def __init__(self, name, val) -> None:
         super().__init__(None, None, name)
+        self.val = None
 
 
 class ConstantNode(VariableNode):
-    def __init__(self, name) -> None:
-        super().__init__(name)
+    def __init__(self, name, val) -> None:
+        super().__init__(name, val)
 
 
 class ComputationGraph:
     def __init__(self) -> None:
         self.vertices = []
         self.edges = []
+        # Only for drawing
         self.nx_graph = nx.DiGraph()
 
     def insert_vertex(self, v: Node):
         v_cnt = len(self.vertices)
         v.id = v_cnt
         # TODO we add the id to the name to make the NX nodes unique
-        if type(v) is OpNode:
-            v.name = f"{v.name}_{v.id}"
         self.vertices.append(v)
         print(f"Adding node {v.name}")
-        self.nx_graph.add_node(v.name, id=v_cnt)
+        self.nx_graph.add_node(v.id, name=v.name)
 
     def insert_edge(self, from_v: Node, to_v: Node):
         edge_cnt = len(self.edges)
         self.edges.append((from_v, to_v))
         print(f"Adding edge from {from_v.name} to {to_v.name}")
-        self.nx_graph.add_edge(from_v.name, to_v.name, name=f"e{edge_cnt}")
+        self.nx_graph.add_edge(from_v.id, to_v.id, name=f"e{edge_cnt}")
 
     def insert_new_vertex_with_edge(self, from_v: Node, to_v: Node):
         self.insert_vertex(to_v)
@@ -119,13 +129,16 @@ class ComputationGraph:
             elif type(node) is OpNode:
                 return "#E6BF00"
         v_colors = [node_type_to_color(
-            self.vertices[attributes["id"]]) for node, attributes in self.nx_graph.nodes(data=True)]
+            self.vertices[node]) for node, attributes in self.nx_graph.nodes(data=True)]
         pos = nx.planar_layout(self.nx_graph)
         nx.draw_networkx_nodes(
             self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=300)
         nx.draw_networkx_edges(
             self.nx_graph, pos=pos)
-        nx.draw_networkx_labels(self.nx_graph, pos=pos, font_color='w')
+        node_labels = {node: attributes["name"]
+                       for node, attributes in self.nx_graph.nodes(data=True)}
+        nx.draw_networkx_labels(self.nx_graph, pos=pos, labels=node_labels,
+                                font_color='black', font_size=7, font_weight="bold")
 
 
 class ReverseModeDualNumber:
@@ -136,9 +149,9 @@ class ReverseModeDualNumber:
         self.val = val
         self.name = name
         if variable:
-            self.current_node = VariableNode(name)
+            self.current_node = VariableNode(name, val=val)
         else:
-            self.current_node = ConstantNode(name)
+            self.current_node = ConstantNode(name, val=val)
         if parent:
             ReverseModeDualNumber.comp_graph.insert_new_vertex_with_edge(
                 parent, self.current_node)
