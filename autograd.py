@@ -1,4 +1,5 @@
 import functools
+from lib2to3.pgen2.token import OP
 import networkx as nx
 import numpy as np
 import math
@@ -92,12 +93,17 @@ class ComputationGraph:
     def insert_vertex(self, v: Node):
         v_cnt = len(self.vertices)
         v.id = v_cnt
+        # TODO we add the id to the name to make the NX nodes unique
+        if type(v) is OpNode:
+            v.name = f"{v.name}_{v.id}"
         self.vertices.append(v)
+        print(f"Adding node {v.name}")
         self.nx_graph.add_node(v.name, id=v_cnt)
 
     def insert_edge(self, from_v: Node, to_v: Node):
         edge_cnt = len(self.edges)
         self.edges.append((from_v, to_v))
+        print(f"Adding edge from {from_v.name} to {to_v.name}")
         self.nx_graph.add_edge(from_v.name, to_v.name, name=f"e{edge_cnt}")
 
     def insert_new_vertex_with_edge(self, from_v: Node, to_v: Node):
@@ -114,9 +120,9 @@ class ComputationGraph:
                 return "#E6BF00"
         v_colors = [node_type_to_color(
             self.vertices[attributes["id"]]) for node, attributes in self.nx_graph.nodes(data=True)]
-        pos = nx.spring_layout(self.nx_graph)
+        pos = nx.planar_layout(self.nx_graph)
         nx.draw_networkx_nodes(
-            self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=600)
+            self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=300)
         nx.draw_networkx_edges(
             self.nx_graph, pos=pos)
         nx.draw_networkx_labels(self.nx_graph, pos=pos, font_color='w')
@@ -151,6 +157,9 @@ class ReverseModeDualNumber:
                       other_operands], child=None, op=name)
         ReverseModeDualNumber.comp_graph.insert_new_vertex_with_edge(
             self.current_node, node)
+        for other_op in other_operands:
+            ReverseModeDualNumber.comp_graph.insert_edge(
+                other_op, node)
         self.current_node.child = node
         self.current_node = node
 
@@ -214,9 +223,6 @@ class Perceptron():
         assert len(x) == self.in_features
         x_dual_num = [ReverseModeDualNumber(
             x_i, f"x_{i}", variable=False) for i, x_i in enumerate(x)]
-
-        for node, attr in ReverseModeDualNumber.comp_graph.nx_graph.nodes(data=True):
-            print(f"node {node} has attr {attr}")
 
         dot_prod = x_dual_num[0] * self.wheight[0]
         for i, (x_i, w_i) in enumerate(zip(x_dual_num, self.wheight)):
