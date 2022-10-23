@@ -68,7 +68,7 @@ class Linear(Module):
     def forward(self, x):
         assert x.shape[0] == self.in_features
         w = self.wheight.param
-        b = self.wheight.param
+        b = self.bias.param
         print(f"{w.shape}, {x.shape}")
         return np.tensordot(x, w, axes=1) + b
 

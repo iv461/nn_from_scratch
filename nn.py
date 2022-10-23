@@ -27,6 +27,8 @@ def vectorize(f):
 
 
 class GradientDescent:
+    """
+    """
 
     def update(self, x, f, lr):
         gradient = grad(f)(x)
