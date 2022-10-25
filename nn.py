@@ -1,56 +1,75 @@
 import autograd.numpy as ag_np
+from autograd import grad
+
+import numpy as np
 import math
 
 from layers import Linear
 from losses import mse_loss
-from train import gradient_descent
-import matplotlib as mpl
+
+import matplotlib
 import matplotlib.pyplot as plt
 
-import numpy as np 
+matplotlib.use("Qt5Agg")
+
+
+def f(x):
+    return ag_np.sin(x) + .3 * ag_np.exp(x)
+
 
 def vectorize(f):
-    def v(x):
-        out = []
-        for x_ in x:
-            out.append(f(x_))
-        return out
-    return v
+    def vectorized(x_vals):
+        output = []
+        for x in x_vals:
+            output.append(f(x))
+        return output
+    return vectorized
 
-def qubic_fitting_problem():
-    ...
 
-def gradient_descent_demo():
+class GradientDescent:
+    """
+    """
 
-    def target_f(x):
-        return ag_np.sin(x)+ .5 * ag_np.exp(x-1.)
+    def update(self, x, f, lr):
+        gradient = grad(f)(x)
+        return x - gradient * lr
 
-    space_to_show = [-5, 5]
-    pts = np.linspace(*space_to_show, num=100)
-    plt.plot(pts, vectorize(target_f)(pts), label='f(x)')
-    #plt.plot(pts, df(pts), label='df/dx')
-    plt.legend()
-    plt.xlim(tuple(space_to_show))
-    plt.ylim((-5, 5))
 
-    
-    x_iter = 2.5
+class Momentum:
+    def __init__(self) -> None:
+        self.moment = 0
+
+    def update(self, x, f, lr):
+        gradient = grad(f)(x)
+        new_x = x - gradient * lr + .1 * self.moment
+        self.moment += gradient * lr
+        print(f"self.moment: {self.moment}")
+        return new_x
+
+
+def train():
+
+    interval = [-5, 5.]
+    x_vals = np.linspace(*interval, num=100)
+    plt.plot(x_vals, vectorize(f)(x_vals))
+    plt.xlim(tuple(interval))
+
+    x_v = 4.
     steps = []
-    for i in range(100):
-        new_x = gradient_descent(x_iter, target_f, .1)
+    opt = GradientDescent()
+    for i in range(1000):
 
-        step = abs(new_x - x_iter)
-        steps.append(new_x)
-        if step < .00001:
-            print(f"GD took {i} iterations")
+        steps.append(x_v)
+        new_x = opt.update(x_v, f, .002)
+
+        if abs(new_x - x_v) < 0.001:
             break
+        x_v = new_x
 
-        print(f"new x is: {new_x}")
-        x_iter = new_x
-    
-    print(f"Minimum is at: {x_iter}")
-    plt.scatter(steps, vectorize(target_f)(steps), label='Gradient descent', c="g")
+    print(f"Minimum is at: {x_v}")
+    plt.scatter(steps, vectorize(f)(steps), color="g")
+
     plt.show()
 
 
-gradient_descent_demo()
+train()
