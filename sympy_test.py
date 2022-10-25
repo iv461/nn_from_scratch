@@ -3,11 +3,15 @@ from sympy.abc import x, y, z
 
 f = x * y * z 
 
-diff(f, x) 
+print(f"diff(f, x) {diff(f, x) }")
 # >>> y * z 
 
-diff(f, y) 
+print(f"diff(f, y) {diff(f, y)}")
 # >>> x * z 
+
+
+
+
 
 
 
