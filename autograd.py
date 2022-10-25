@@ -153,8 +153,15 @@ class ComputationGraph:
 
         result_labels = {node: op_node_label(node)
                          for node, attributes in self.nx_graph.nodes(data=True)}
-        op_nodes_positions = {node: (
-            x, y-30) for node, (x, y) in node_positions.items()}
+        def get_node_pos(node_id, pos):
+            node = self.vertices[node_id]
+            x, y = pos
+            # Draw for op-nodes the result on the bottom 
+            if type(node) is OpNode:
+                return (x, y-30)
+            else:
+                return (x, y+10)
+        op_nodes_positions = {node_id: get_node_pos(node_id, pos) for node_id, pos in node_positions.items()}
 
         nx.draw_networkx_labels(self.nx_graph, pos=op_nodes_positions, labels=result_labels,
                                 font_color='black', font_size=size * 5, verticalalignment="baseline")
@@ -292,8 +299,7 @@ def test():
     res = p.forward(x)
 
     res.backward()
-    for v in ReverseModeDualNumber.comp_graph.vertices:
-        print(f"V is {v.__dict__}")
+    
     ReverseModeDualNumber.comp_graph.draw(size=2.)
 
     plt.show()
