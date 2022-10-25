@@ -28,7 +28,8 @@ class Node:
         self.child = child
         self.name = name
         self.id = None
-        self.value = value 
+        self.value = value
+
 
 class OpNode(Node):
     cnt = 0
@@ -38,8 +39,8 @@ class OpNode(Node):
         self.operation = op
         self.result_name = f"f_{OpNode.cnt}"
         OpNode.cnt += 1
-        self.local_grad = None 
-    
+        self.local_grad = None
+
     def backward(self):
         """
         Get the gradient of the output of this opnode w.r.t to all the parents. 
@@ -48,25 +49,25 @@ class OpNode(Node):
         assert len(self.parents) == 2
         # Some partial derivatices of common functions
         op1, op2 = self.parents[0], self.parents[1]
-        
+
         if self.operation == "+":
             self.local_grad = {
                 parent_node.id: 1. for parent_node in self.parents}
-            self.grad_exp  = {
+            self.grad_exp = {
                 op1.id: f"1",
                 op2.id: f"1"}
         elif self.operation == "-":
             self.local_grad = {
                 self.parents[0].id: 1.,
                 self.parents[1].id: -1.}
-            self.grad_exp  = {
+            self.grad_exp = {
                 op1.id: f"1",
                 op2.id: f"-1"}
         elif self.operation == "*":
             self.local_grad = {parent_node.id: math.prod(
                 [other_parent_node.value for other_parent_node in self.parents if other_parent_node != parent_node]) for parent_node in self.parents}
             # TODO special, binary case
-            self.grad_exp  = {
+            self.grad_exp = {
                 op1.id: f"{op2.name}",
                 op2.id: f"{op1.name}"}
         elif self.operation == "/":
@@ -78,19 +79,19 @@ class OpNode(Node):
                 op2.id: f"({-op1.name} / {op2.name} ** 2)"}
         else:
             raise Exception(f"Op {self.operation} not implemented")
-        
+
         if False:
             if self.operation == "+":
-                self.grad_exp  = {
+                self.grad_exp = {
                     op1.id: f"1",
                     op2.id: f"1"}
             elif self.operation == "-":
-                self.grad_exp  = {
+                self.grad_exp = {
                     op1.id: f"1",
                     op2.id: f"-1"}
             elif self.operation == "*":
                 # TODO special, binary case
-                self.grad_exp  = {
+                self.grad_exp = {
                     op1.id: f"{op2.name}",
                     op2.id: f"{op1.name}"}
             elif self.operation == "/":
@@ -100,16 +101,18 @@ class OpNode(Node):
             else:
                 raise Exception(f"Op {self.operation} not implemented")
 
+
 class VariableNode(Node):
-    def __init__(self, name, val:np.ndarray) -> None:
+    def __init__(self, name, val: np.ndarray) -> None:
         super().__init__(None, None, name, val)
         self.val = val
         self.grad = None
         # String expression of the gradient, for debug
         self.grad_exp = None
 
+
 class ConstantNode(VariableNode):
-    def __init__(self, name, val:np.ndarray) -> None:
+    def __init__(self, name, val: np.ndarray) -> None:
         super().__init__(name, val)
 
 
@@ -119,7 +122,7 @@ class ComputationGraph:
         self.edges = []
         # Only for drawing
         self.nx_graph = nx.DiGraph()
-        self.current_root = None 
+        self.current_root = None
 
     def insert_vertex(self, v: Node):
         v_cnt = len(self.vertices)
@@ -143,20 +146,21 @@ class ComputationGraph:
 
     def backward(self):
         gradient = {}
-        def dfs(node: OpNode, accumulated_product=1., acc_grad_exp=""):            
+
+        def dfs(node: OpNode, accumulated_product=1., acc_grad_exp=""):
             node.backward()
             for parent in node.parents:
                 grad_elem = node.local_grad[parent.id]*accumulated_product
                 if acc_grad_exp == "":
-                    grad_exp =  node.grad_exp[parent.id]
+                    grad_exp = node.grad_exp[parent.id]
                 else:
-                    grad_exp = acc_grad_exp+ " * " + node.grad_exp[parent.id]
-                if type(parent) is  OpNode:
+                    grad_exp = acc_grad_exp + " * " + node.grad_exp[parent.id]
+                if type(parent) is OpNode:
                     dfs(parent, grad_elem, grad_exp)
                 elif type(parent) is VariableNode:
                     # Set the gradient, terminate search
                     if not parent.grad:
-                        parent.grad= 0.
+                        parent.grad = 0.
                     parent.grad += grad_elem
                     parent.grad_exp = grad_exp
                     # A separate copy
