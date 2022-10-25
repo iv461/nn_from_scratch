@@ -28,7 +28,7 @@ class Node:
         self.child = child
         self.name = name
         self.id = None
-        self.value = value
+        self.value = value 
 
 class OpNode(Node):
     cnt = 0
@@ -39,7 +39,7 @@ class OpNode(Node):
         self.result_name = f"f_{OpNode.cnt}"
         OpNode.cnt += 1
         self.local_grad = None 
-
+    
     def backward(self):
         """
         Get the gradient of the output of this opnode w.r.t to all the parents. 
@@ -48,6 +48,7 @@ class OpNode(Node):
         assert len(self.parents) == 2
         # Some partial derivatices of common functions
         op1, op2 = self.parents[0], self.parents[1]
+        
         if self.operation == "+":
             self.local_grad = {
                 parent_node.id: 1. for parent_node in self.parents}
@@ -78,17 +79,37 @@ class OpNode(Node):
         else:
             raise Exception(f"Op {self.operation} not implemented")
         
+        if False:
+            if self.operation == "+":
+                self.grad_exp  = {
+                    op1.id: f"1",
+                    op2.id: f"1"}
+            elif self.operation == "-":
+                self.grad_exp  = {
+                    op1.id: f"1",
+                    op2.id: f"-1"}
+            elif self.operation == "*":
+                # TODO special, binary case
+                self.grad_exp  = {
+                    op1.id: f"{op2.name}",
+                    op2.id: f"{op1.name}"}
+            elif self.operation == "/":
+                self.grad_exp = {
+                    op1.id: f"(1. / {op2.name})",
+                    op2.id: f"({-op1.name} / {op2.name} ** 2)"}
+            else:
+                raise Exception(f"Op {self.operation} not implemented")
 
 class VariableNode(Node):
-    def __init__(self, name, val) -> None:
+    def __init__(self, name, val:np.ndarray) -> None:
         super().__init__(None, None, name, val)
-        self.val = None
+        self.val = val
         self.grad = None
         # String expression of the gradient, for debug
         self.grad_exp = None
 
 class ConstantNode(VariableNode):
-    def __init__(self, name, val) -> None:
+    def __init__(self, name, val:np.ndarray) -> None:
         super().__init__(name, val)
 
 
@@ -214,7 +235,7 @@ class ReverseModeDualNumber:
 
     comp_graph = ComputationGraph()
 
-    def __init__(self, val: float, name, variable=True, parent=None) -> None:
+    def __init__(self, val: np.ndarray, name, variable=True, parent=None) -> None:
         self.val = val
         self.name = name
         if variable:
@@ -256,6 +277,7 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(
                 f"Add with {other} of type {type(other)} not supported")
+        assert other.val.shape == self.val.shape
         self.append_binary_op("+", other.current_node)
         self.val += other.val
         self.current_node.value = self.val
@@ -267,6 +289,7 @@ class ReverseModeDualNumber:
     def __sub__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Sub with {type(other)} not supported")
+        assert other.val.shape == self.val.shape
         self.append_binary_op("-", other.current_node)
         self.val -= other.val
         self.current_node.value = self.val
@@ -278,6 +301,7 @@ class ReverseModeDualNumber:
     def __mul__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
+        assert other.val.shape == self.val.shape
         self.append_binary_op("*", other.current_node)
         self.val *= other.val
         self.current_node.value = self.val
@@ -289,6 +313,7 @@ class ReverseModeDualNumber:
     def __truediv__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
+        assert other.val.shape == self.val.shape
         self.append_binary_op("*", other.current_node)
         self.val / other.val
         self.current_node.value = self.val
