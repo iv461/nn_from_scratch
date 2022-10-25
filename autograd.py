@@ -13,55 +13,8 @@ from dataclasses import dataclass
 from typing import List, Union, Deque, Dict
 
 
-class DualNumber:
-    """
-    For forward-mode AD
-    """
-
-    def __init__(self, _x, _dx=0.):
-        if type(_x) is DualNumber:
-            self.x = _x.x
-            self.dx = _x.dx
-        else:
-            self.x = float(_x)
-            self.dx = _dx
-
-    def __add__(self, other):
-        # copyes if other is a dual or creates a dual number if other is a constant
-        other_dual = DualNumber(other)
-        return DualNumber(self.x + other_dual.x, self.dx + other_dual.dx)
-
-    def __radd__(self, other):
-        return type(self).__add__(self, other)
-
-    def __sub__(self, other):
-        # copyes if other is a dual or creates a dual number if other is a constant
-        other_dual = DualNumber(other)
-        return DualNumber(self.x - other_dual.x, self.dx - other_dual.dx)
-
-    def __rsub__(self, other):
-        return type(self).__sub__(self, other)
-
-    def __mul__(self, other):
-        # copyes if other is a dual or creates a dual number if other is a constant
-        other_dual = DualNumber(other)
-        return DualNumber(self.x * other_dual.x, other_dual.x * self.dx + other_dual.dx * self.x)
-
-    def __rmul__(self, other):
-        return type(self).__mul__(self, other)
-
-    def __truediv__(self, other):
-        # copyes if other is a dual or creates a dual number if other is a constant
-        other_dual = DualNumber(other)
-        other_x_inv = 1. / other_dual.x
-        new_x = self.x * other_x_inv
-        # product rule
-        new_dx = (self.dx - other_dual.dx * new_x) * other_x_inv
-        return DualNumber(new_x, new_dx)
-
-
 class Node:
-    def __init__(self, parents, child, name: str) -> None:
+    def __init__(self, parents, child, name: str, value=None) -> None:
         if parents is not None:
             if isinstance(parents, list):
                 if not all(map(lambda parent: isinstance(parent, Node), parents)):
@@ -70,6 +23,11 @@ class Node:
         self.child = child
         self.name = name
         self.id = None
+        self.value = value
+        self.grad = None
+
+    def backward(self):
+        raise NotImplementedError("")
 
     def is_root(self):
         return self.parents is None
@@ -83,12 +41,24 @@ class OpNode(Node):
         super().__init__(parents, child, op)
         self.operation = op
         # intermediate result, cached
-        self.result = None
+        #self.value = None
 
+    def backward(self):
+        """
+        Get the gradient of the output of this opnode w.r.t to all variable_nodes
+        """
+        gradient = {}
+        def dfs(node: OpNode):
+            # Some partial derivatices of common functions
+            if node.operation == "+":
+                node.grad =  [1., 1.]
+            elif node.operation == "*":
+                node.grad =  [self.parents[1].value, self.parents[0].value]
+        
 
 class VariableNode(Node):
     def __init__(self, name, val) -> None:
-        super().__init__(None, None, name)
+        super().__init__(None, None, name, val)
         self.val = None
 
 
@@ -123,7 +93,7 @@ class ComputationGraph:
         self.insert_vertex(to_v)
         self.insert_edge(from_v, to_v)
 
-    def draw(self):
+    def draw(self, size=1.):
         def node_type_to_color(node: Node):
             if type(node) is VariableNode:
                 return "#E6E600"
@@ -133,16 +103,22 @@ class ComputationGraph:
                 return "#E6BF00"
         v_colors = [node_type_to_color(
             self.vertices[node]) for node, attributes in self.nx_graph.nodes(data=True)]
-        #pos = nx.planar_layout(self.nx_graph)
         pos = graphviz_layout(self.nx_graph, prog="dot")
+
         nx.draw_networkx_nodes(
-            self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=300)
+            self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=size * 300)
         nx.draw_networkx_edges(
             self.nx_graph, pos=pos)
         node_labels = {node: attributes["ag_name"]
                        for node, attributes in self.nx_graph.nodes(data=True)}
         nx.draw_networkx_labels(self.nx_graph, pos=pos, labels=node_labels,
-                                font_color='black', font_size=7, font_weight="bold")
+                                font_color='black', font_size=size * 7, font_weight="bold")
+
+        result_labels = {node: "%.2f" % self.vertices[node].value
+                         for node, attributes in self.nx_graph.nodes(data=True)}
+        node_labels_pos = {node: (x, y-30) for node, (x, y) in pos.items()}
+        nx.draw_networkx_labels(self.nx_graph, pos=node_labels_pos, labels=result_labels,
+                                font_color='black', font_size=size * 5, verticalalignment="baseline")
 
 
 class ReverseModeDualNumber:
@@ -164,8 +140,9 @@ class ReverseModeDualNumber:
                 self.current_node)
 
     def backward(self):
-        pass
+        self.current_node.backward()
 
+    @classmethod
     def reset_graph(self):
         ReverseModeDualNumber.comp_graph = ComputationGraph()
 
@@ -192,6 +169,7 @@ class ReverseModeDualNumber:
                 f"Add with {other} of type {type(other)} not supported")
         self.append_binary_op("+", other.current_node)
         self.val += other.val
+        self.current_node.value = self.val
         return self
 
     def __radd__(self, other):
@@ -202,6 +180,7 @@ class ReverseModeDualNumber:
             raise Exception(f"Sub with {type(other)} not supported")
         self.append_binary_op("-", other.current_node)
         self.val -= other.val
+        self.current_node.value = self.val
         return self
 
     def __rsub__(self, other):
@@ -212,6 +191,7 @@ class ReverseModeDualNumber:
             raise Exception(f"Mul with {type(other)} not supported")
         self.append_binary_op("*", other.current_node)
         self.val *= other.val
+        self.current_node.value = self.val
         return self
 
     def __rmul__(self, other):
@@ -222,6 +202,7 @@ class ReverseModeDualNumber:
             raise Exception(f"Mul with {type(other)} not supported")
         self.append_binary_op("*", other.current_node)
         self.val / other.val
+        self.current_node.value = self.val
         return self
 
 
@@ -291,7 +272,7 @@ class dx:
 
 def reverse_mode_test():
 
-    in_dim = 4
+    in_dim = 9
     p = Perceptron(in_features=in_dim)
 
     print(f"Pw is: {p.wheight}, {p.bias}")
@@ -299,7 +280,8 @@ def reverse_mode_test():
     x = np.arange(in_dim)
     res = p.forward(x)
 
-    ReverseModeDualNumber.comp_graph.draw()
+    ReverseModeDualNumber.comp_graph.draw(size=2.)
+
     plt.show()
 
 
