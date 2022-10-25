@@ -49,14 +49,18 @@ class OpNode(Node):
         assert len(self.parents) == 2
         # Some partial derivatices of common functions
         op1, op2 = self.parents[0], self.parents[1]
-
+        both_scalar = (isinstance(op1.value, float) and isinstance(op2.value, float)) 
+        same_shape = (op1.value.shape == op2.value.shape)
+        
         if self.operation == "+":
+            assert both_scalar or same_shape
             self.local_grad = {
                 parent_node.id: 1. for parent_node in self.parents}
             self.grad_exp = {
                 op1.id: f"1",
                 op2.id: f"1"}
         elif self.operation == "-":
+            assert both_scalar or same_shape
             self.local_grad = {
                 self.parents[0].id: 1.,
                 self.parents[1].id: -1.}
@@ -64,6 +68,8 @@ class OpNode(Node):
                 op1.id: f"1",
                 op2.id: f"-1"}
         elif self.operation == "*":
+            compat = op1.value.ndim = 2 and op1.value.shape(0) == op1.value.shape(1)
+            assert compat or both_scalar or same_shape
             self.local_grad = {parent_node.id: math.prod(
                 [other_parent_node.value for other_parent_node in self.parents if other_parent_node != parent_node]) for parent_node in self.parents}
             # TODO special, binary case
