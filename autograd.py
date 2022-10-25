@@ -62,10 +62,24 @@ class OpNode(Node):
                 self.parents[0].id: 1.,
                 self.parents[1].id: -1.}
         elif self.operation == "*":
+            # only the case for Ax where A \in R^(n x m) and x \in R^m implemented currently
             assert both_scalar or same_shape or (
                 op1.value.ndim == 2 and op1.value.shape[0] == op1.value.shape[1] and op2.value.ndim == 1 and op1.value.shape[0] == op2.value.shape[0])
-            self.local_grad = {parent_node.id: math.prod(
-                [other_parent_node.value for other_parent_node in self.parents if other_parent_node != parent_node]) for parent_node in self.parents}
+
+            if op1.value.ndim == 2 and op2.value.ndim == 1:
+                vec_dim = op2.value.shape[0]
+                # Partial derivative w.r.t to the Matrix is the vector repeated as rows of the matrix
+                d_f_dA = np.broadcast_to(
+                    op2.value, (op1.value.shape[0], len(op2.value)))
+                # TODO correct ?
+                d_f_dx = op1.value
+                self.local_grad = {
+                    self.parents[0].id: d_f_dA,
+                    self.parents[1].id: d_f_dx}
+
+            else:  # scalar and scalar product between vectors case
+                self.local_grad = {op1.id: op2.value, op2.id: op1.value}
+
         elif self.operation == "/":
             assert both_scalar or same_shape
             self.local_grad = {
@@ -181,6 +195,7 @@ class ComputationGraph:
                                 font_color='black', font_size=size * 7, font_weight="bold")
         self.draw_node_result_labels(node_positions, size)
         self.draw_edge_result_labels(node_positions, size)
+        plt.show()
 
     def draw_edge_result_labels(self, node_positions, size):
         def get_edge_label(from_node_id, to_node_id):
@@ -190,8 +205,7 @@ class ComputationGraph:
                 from_node) is OpNode else from_node.name
 
             partial_d_value = to_node.local_grad[from_node_id]
-            # return f"\\partial{{\\frac{{to_node.result_name}}{{from_node_name}}}} = " + "%.2f" % partial_d_value
-            return f"d{to_node.result_name}/{from_node_name} = " + "%.2f" % partial_d_value
+            return f"d{to_node.result_name}/{from_node_name} = " + str(partial_d_value)
         result_labels = {(from_node, to_node): get_edge_label(from_node, to_node)
                          for from_node, to_node, data in self.nx_graph.edges(data=True) if type(self.vertices[to_node]) == OpNode}
         nx.draw_networkx_edge_labels(self.nx_graph, pos=node_positions, edge_labels=result_labels,
@@ -202,9 +216,9 @@ class ComputationGraph:
         def op_node_label(node_id):
             node = self.vertices[node_id]
             if type(node) == OpNode:
-                return f"{node.result_name}=" + "%.2f" % node.value
+                return f"{node.result_name}=" + str(node.value)
             else:
-                return f"{node.name}=" + "%.2f" % node.value
+                return f"{node.name}=" + str(node.value)
 
         result_labels = {node: op_node_label(node)
                          for node, attributes in self.nx_graph.nodes(data=True)}
@@ -228,13 +242,13 @@ class ReverseModeDualNumber:
 
     comp_graph = ComputationGraph()
 
-    def __init__(self, val: np.ndarray, name, variable=True, parent=None) -> None:
-        self.val = val
+    def __init__(self, value: np.ndarray, name, variable=True, parent=None) -> None:
+        self.value = value
         self.name = name
         if variable:
-            self.current_node = VariableNode(name, val=val)
+            self.current_node = VariableNode(name, val=value)
         else:
-            self.current_node = ConstantNode(name, val=val)
+            self.current_node = ConstantNode(name, val=value)
         if parent:
             ReverseModeDualNumber.comp_graph.insert_new_vertex_with_edge(
                 parent, self.current_node)
@@ -270,10 +284,10 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(
                 f"Add with {other} of type {type(other)} not supported")
-        assert other.val.shape == self.val.shape
+        assert other.value.shape == self.value.shape
         self.append_binary_op("+", other.current_node)
-        self.val += other.val
-        self.current_node.value = self.val
+        self.value += other.value
+        self.current_node.value = self.value
         return self
 
     def __radd__(self, other):
@@ -282,10 +296,10 @@ class ReverseModeDualNumber:
     def __sub__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Sub with {type(other)} not supported")
-        assert other.val.shape == self.val.shape
+        assert other.value.shape == self.value.shape
         self.append_binary_op("-", other.current_node)
-        self.val -= other.val
-        self.current_node.value = self.val
+        self.value -= other.value
+        self.current_node.value = self.value
         return self
 
     def __rsub__(self, other):
@@ -294,10 +308,12 @@ class ReverseModeDualNumber:
     def __mul__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
-        assert other.val.shape == self.val.shape
         self.append_binary_op("*", other.current_node)
-        self.val *= other.val
-        self.current_node.value = self.val
+        if isinstance(self.value, float) and isinstance(other.value, float):
+            self.value *= other.value
+        else:
+            self.value = np.matmul(self.value, other.value)
+        self.current_node.value = self.value
         return self
 
     def __rmul__(self, other):
@@ -306,18 +322,19 @@ class ReverseModeDualNumber:
     def __truediv__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
-        assert other.val.shape == self.val.shape
+        assert other.value.shape == self.value.shape
         self.append_binary_op("*", other.current_node)
-        self.val / other.val
-        self.current_node.value = self.val
+        self.value / other.value
+        self.current_node.value = self.value
         return self
 
 
 class Perceptron():
     random_gen = np.random.default_rng(seed=123456)
 
-    def __init__(self, in_features):
+    def __init__(self, in_features, out_features):
         self.in_features = in_features
+        self.out_features = out_features
 
         k = 1. / in_features
         k_sqrt = math.sqrt(k)
@@ -344,7 +361,7 @@ class Perceptron():
 def sin(x):
     if isinstance(x, ReverseModeDualNumber):
         x.append_unary_op("sin")
-        return math.sin(x.val)
+        return math.sin(x.value)
     else:
         return math.sin(x)
 
@@ -366,4 +383,5 @@ def test():
     plt.show()
 
 
-test()
+if __name__ == "__main__":
+    test()
