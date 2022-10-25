@@ -1,5 +1,4 @@
 import functools
-
 import networkx as nx
 import numpy as np
 import math
@@ -28,6 +27,9 @@ class Node:
         self.id = None
         self.value = value
         self.grad = None
+        self.local_grad = None 
+        # String expression of the gradient, for debug
+        self.grad_exp = None
 
     def backward(self):
         raise NotImplementedError("")
@@ -41,8 +43,6 @@ class OpNode(Node):
         self.operation = op
         self.result_name = f"f_{OpNode.cnt}"
         OpNode.cnt += 1
-        # intermediate result, cached
-        #self.value = None
 
     def backward(self):
         """
@@ -50,21 +50,59 @@ class OpNode(Node):
         """
         gradient = {}
 
-        def dfs(node: OpNode):
+        def dfs(node: OpNode, accumulated_product=1., acc_grad_exp=""):
             # Some partial derivatices of common functions
+            op1, op2 = node.parents[0], node.parents[1]
             if node.operation == "+":
-                node.grad = {
+                node.local_grad = {
                     parent_node.id: 1. for parent_node in node.parents}
+                node.grad_exp  = {
+                    op1.id: f"1",
+                    op2.id: f"1"}
+            if node.operation == "-":
+                node.local_grad = {
+                    node.parents[0].id: 1.,
+                    node.parents[1].id: -1.}
+                node.grad_exp  = {
+                    op1.id: f"1",
+                    op2.id: f"-1"}
             elif node.operation == "*":
-                node.grad = {parent_node.id: math.prod(
+                node.local_grad = {parent_node.id: math.prod(
                     [other_parent_node.value for other_parent_node in node.parents if other_parent_node != parent_node]) for parent_node in node.parents}
+                # TODO special, binary case
+                node.grad_exp  = {
+                    op1.id: f"{op2.name}",
+                    op2.id: f"{op1.name}"}
+            elif node.operation == "/":
+                node.local_grad = {
+                    op1.id: 1. / op2.value,
+                    op2.id: (-op1.value / op2.value ** 2)}
+                node.grad_exp = {
+                    op1.id: f"(1. / {op2.name})",
+                    op2.id: f"({-op1.name} / {op2.name} ** 2)"}
 
             for parent in node.parents:
-                if type(parent) is not OpNode:
-                    continue
-                dfs(parent)
+                grad_elem = node.local_grad[parent.id]*accumulated_product
+                if acc_grad_exp == "":
+                    grad_exp =  node.grad_exp[parent.id]
+                else:
+                    grad_exp = acc_grad_exp+ " * " + node.grad_exp[parent.id]
+                if type(parent) is  OpNode:
+                    dfs(parent, grad_elem, grad_exp)
+                elif type(parent) is VariableNode:
+                    # Set the gradient, terminate search
+                    if not parent.grad:
+                        parent.grad= 0.
+                    parent.grad += grad_elem
+                    parent.grad_exp = grad_exp
+                    # A separate copy
+                    #gradient[parent.name] = (grad_elem, grad_exp)
+                    gradient[parent.name] = grad_elem
+
+
 
         dfs(self)
+        print(f"Grad is: {gradient}")
 
 
 class VariableNode(Node):
@@ -134,14 +172,14 @@ class ComputationGraph:
             from_node_name = from_node.result_name if type(
                 from_node) is OpNode else from_node.name
 
-            partial_d_value = to_node.grad[from_node_id]
-            #return f"\\partial{{\\frac{{to_node.result_name}}{{from_node_name}}}} = " + "%.2f" % partial_d_value
+            partial_d_value = to_node.local_grad[from_node_id]
+            # return f"\\partial{{\\frac{{to_node.result_name}}{{from_node_name}}}} = " + "%.2f" % partial_d_value
             return f"d{to_node.result_name}/{from_node_name} = " + "%.2f" % partial_d_value
         result_labels = {(from_node, to_node): get_edge_label(from_node, to_node)
                          for from_node, to_node, data in self.nx_graph.edges(data=True) if type(self.vertices[to_node]) == OpNode}
         nx.draw_networkx_edge_labels(self.nx_graph, pos=node_positions, edge_labels=result_labels,
-                                            font_color='black', font_size=size * 5,
-                                            rotate=False)
+                                     font_color='black', font_size=size * 5,
+                                     rotate=False)
 
     def draw_node_result_labels(self, node_positions, size):
         def op_node_label(node_id):
@@ -153,15 +191,17 @@ class ComputationGraph:
 
         result_labels = {node: op_node_label(node)
                          for node, attributes in self.nx_graph.nodes(data=True)}
+
         def get_node_pos(node_id, pos):
             node = self.vertices[node_id]
             x, y = pos
-            # Draw for op-nodes the result on the bottom 
+            # Draw for op-nodes the result on the bottom
             if type(node) is OpNode:
-                return (x, y-30)
+                return (x, y-10)
             else:
                 return (x, y+10)
-        op_nodes_positions = {node_id: get_node_pos(node_id, pos) for node_id, pos in node_positions.items()}
+        op_nodes_positions = {node_id: get_node_pos(
+            node_id, pos) for node_id, pos in node_positions.items()}
 
         nx.draw_networkx_labels(self.nx_graph, pos=op_nodes_positions, labels=result_labels,
                                 font_color='black', font_size=size * 5, verticalalignment="baseline")
@@ -290,7 +330,7 @@ def sin(x):
 
 def test():
 
-    in_dim = 2
+    in_dim = 3
     p = Perceptron(in_features=in_dim)
 
     print(f"Pw is: {p.wheight}, {p.bias}")
@@ -299,7 +339,7 @@ def test():
     res = p.forward(x)
 
     res.backward()
-    
+
     ReverseModeDualNumber.comp_graph.draw(size=2.)
 
     plt.show()
