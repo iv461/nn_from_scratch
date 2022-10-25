@@ -17,6 +17,9 @@ from typing import List, Union, Deque, Dict
 
 class Node:
     def __init__(self, parents, child, name: str, value=None) -> None:
+        """
+        value: float
+        """
         if parents is not None:
             if isinstance(parents, list):
                 if not all(map(lambda parent: isinstance(parent, Node), parents)):
@@ -26,14 +29,6 @@ class Node:
         self.name = name
         self.id = None
         self.value = value
-        self.grad = None
-        self.local_grad = None 
-        # String expression of the gradient, for debug
-        self.grad_exp = None
-
-    def backward(self):
-        raise NotImplementedError("")
-
 
 class OpNode(Node):
     cnt = 0
@@ -43,44 +38,92 @@ class OpNode(Node):
         self.operation = op
         self.result_name = f"f_{OpNode.cnt}"
         OpNode.cnt += 1
+        self.local_grad = None 
 
     def backward(self):
         """
-        Get the gradient of the output of this opnode w.r.t to all variable_nodes
+        Get the gradient of the output of this opnode w.r.t to all the parents. 
+        This calculates the local gradient
         """
+        assert len(self.parents) == 2
+        # Some partial derivatices of common functions
+        op1, op2 = self.parents[0], self.parents[1]
+        if self.operation == "+":
+            self.local_grad = {
+                parent_node.id: 1. for parent_node in self.parents}
+            self.grad_exp  = {
+                op1.id: f"1",
+                op2.id: f"1"}
+        elif self.operation == "-":
+            self.local_grad = {
+                self.parents[0].id: 1.,
+                self.parents[1].id: -1.}
+            self.grad_exp  = {
+                op1.id: f"1",
+                op2.id: f"-1"}
+        elif self.operation == "*":
+            self.local_grad = {parent_node.id: math.prod(
+                [other_parent_node.value for other_parent_node in self.parents if other_parent_node != parent_node]) for parent_node in self.parents}
+            # TODO special, binary case
+            self.grad_exp  = {
+                op1.id: f"{op2.name}",
+                op2.id: f"{op1.name}"}
+        elif self.operation == "/":
+            self.local_grad = {
+                op1.id: 1. / op2.value,
+                op2.id: (-op1.value / op2.value ** 2)}
+            self.grad_exp = {
+                op1.id: f"(1. / {op2.name})",
+                op2.id: f"({-op1.name} / {op2.name} ** 2)"}
+        else:
+            raise Exception(f"Op {self.operation} not implemented")
+        
+
+class VariableNode(Node):
+    def __init__(self, name, val) -> None:
+        super().__init__(None, None, name, val)
+        self.val = None
+        self.grad = None
+        # String expression of the gradient, for debug
+        self.grad_exp = None
+
+class ConstantNode(VariableNode):
+    def __init__(self, name, val) -> None:
+        super().__init__(name, val)
+
+
+class ComputationGraph:
+    def __init__(self) -> None:
+        self.vertices = []
+        self.edges = []
+        # Only for drawing
+        self.nx_graph = nx.DiGraph()
+        self.current_root = None 
+
+    def insert_vertex(self, v: Node):
+        v_cnt = len(self.vertices)
+        v.id = v_cnt
+        # TODO we add the id to the name to make the NX nodes unique
+        self.vertices.append(v)
+        print(f"Adding node {v.name}")
+        # attribute with the key "'name'" collides when converting to dot with pydot, thus we name id "ag_name"
+        self.nx_graph.add_node(v.id, ag_name=v.name)
+        self.current_root = v.id
+
+    def insert_edge(self, from_v: Node, to_v: Node):
+        edge_cnt = len(self.edges)
+        self.edges.append((from_v, to_v))
+        print(f"Adding edge from {from_v.name} to {to_v.name}")
+        self.nx_graph.add_edge(from_v.id, to_v.id, ag_name=f"e{edge_cnt}")
+
+    def insert_new_vertex_with_edge(self, from_v: Node, to_v: Node):
+        self.insert_vertex(to_v)
+        self.insert_edge(from_v, to_v)
+
+    def backward(self):
         gradient = {}
-
-        def dfs(node: OpNode, accumulated_product=1., acc_grad_exp=""):
-            # Some partial derivatices of common functions
-            op1, op2 = node.parents[0], node.parents[1]
-            if node.operation == "+":
-                node.local_grad = {
-                    parent_node.id: 1. for parent_node in node.parents}
-                node.grad_exp  = {
-                    op1.id: f"1",
-                    op2.id: f"1"}
-            if node.operation == "-":
-                node.local_grad = {
-                    node.parents[0].id: 1.,
-                    node.parents[1].id: -1.}
-                node.grad_exp  = {
-                    op1.id: f"1",
-                    op2.id: f"-1"}
-            elif node.operation == "*":
-                node.local_grad = {parent_node.id: math.prod(
-                    [other_parent_node.value for other_parent_node in node.parents if other_parent_node != parent_node]) for parent_node in node.parents}
-                # TODO special, binary case
-                node.grad_exp  = {
-                    op1.id: f"{op2.name}",
-                    op2.id: f"{op1.name}"}
-            elif node.operation == "/":
-                node.local_grad = {
-                    op1.id: 1. / op2.value,
-                    op2.id: (-op1.value / op2.value ** 2)}
-                node.grad_exp = {
-                    op1.id: f"(1. / {op2.name})",
-                    op2.id: f"({-op1.name} / {op2.name} ** 2)"}
-
+        def dfs(node: OpNode, accumulated_product=1., acc_grad_exp=""):            
+            node.backward()
             for parent in node.parents:
                 grad_elem = node.local_grad[parent.id]*accumulated_product
                 if acc_grad_exp == "":
@@ -99,48 +142,8 @@ class OpNode(Node):
                     #gradient[parent.name] = (grad_elem, grad_exp)
                     gradient[parent.name] = grad_elem
 
-
-
-        dfs(self)
+        dfs(self.vertices[self.current_root])
         print(f"Grad is: {gradient}")
-
-
-class VariableNode(Node):
-    def __init__(self, name, val) -> None:
-        super().__init__(None, None, name, val)
-        self.val = None
-
-
-class ConstantNode(VariableNode):
-    def __init__(self, name, val) -> None:
-        super().__init__(name, val)
-
-
-class ComputationGraph:
-    def __init__(self) -> None:
-        self.vertices = []
-        self.edges = []
-        # Only for drawing
-        self.nx_graph = nx.DiGraph()
-
-    def insert_vertex(self, v: Node):
-        v_cnt = len(self.vertices)
-        v.id = v_cnt
-        # TODO we add the id to the name to make the NX nodes unique
-        self.vertices.append(v)
-        print(f"Adding node {v.name}")
-        # attribute with the key "'name'" collides when converting to dot with pydot, thus we name id "ag_name"
-        self.nx_graph.add_node(v.id, ag_name=v.name)
-
-    def insert_edge(self, from_v: Node, to_v: Node):
-        edge_cnt = len(self.edges)
-        self.edges.append((from_v, to_v))
-        print(f"Adding edge from {from_v.name} to {to_v.name}")
-        self.nx_graph.add_edge(from_v.id, to_v.id, ag_name=f"e{edge_cnt}")
-
-    def insert_new_vertex_with_edge(self, from_v: Node, to_v: Node):
-        self.insert_vertex(to_v)
-        self.insert_edge(from_v, to_v)
 
     def draw(self, size=1.):
         def node_type_to_color(node: Node):
@@ -226,7 +229,7 @@ class ReverseModeDualNumber:
                 self.current_node)
 
     def backward(self):
-        self.current_node.backward()
+        ReverseModeDualNumber.comp_graph.backward()
 
     @classmethod
     def reset_graph(self):
