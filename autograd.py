@@ -49,40 +49,28 @@ class OpNode(Node):
         assert len(self.parents) == 2
         # Some partial derivatices of common functions
         op1, op2 = self.parents[0], self.parents[1]
-        both_scalar = (isinstance(op1.value, float) and isinstance(op2.value, float)) 
+        both_scalar = (isinstance(op1.value, float)
+                       and isinstance(op2.value, float))
         same_shape = (op1.value.shape == op2.value.shape)
-        
         if self.operation == "+":
             assert both_scalar or same_shape
             self.local_grad = {
                 parent_node.id: 1. for parent_node in self.parents}
-            self.grad_exp = {
-                op1.id: f"1",
-                op2.id: f"1"}
         elif self.operation == "-":
             assert both_scalar or same_shape
             self.local_grad = {
                 self.parents[0].id: 1.,
                 self.parents[1].id: -1.}
-            self.grad_exp = {
-                op1.id: f"1",
-                op2.id: f"-1"}
         elif self.operation == "*":
-            compat = op1.value.ndim = 2 and op1.value.shape(0) == op1.value.shape(1)
-            assert compat or both_scalar or same_shape
+            assert both_scalar or same_shape or (
+                op1.value.ndim == 2 and op1.value.shape[0] == op1.value.shape[1] and op2.value.ndim == 1 and op1.value.shape[0] == op2.value.shape[0])
             self.local_grad = {parent_node.id: math.prod(
                 [other_parent_node.value for other_parent_node in self.parents if other_parent_node != parent_node]) for parent_node in self.parents}
-            # TODO special, binary case
-            self.grad_exp = {
-                op1.id: f"{op2.name}",
-                op2.id: f"{op1.name}"}
         elif self.operation == "/":
+            assert both_scalar or same_shape
             self.local_grad = {
                 op1.id: 1. / op2.value,
                 op2.id: (-op1.value / op2.value ** 2)}
-            self.grad_exp = {
-                op1.id: f"(1. / {op2.name})",
-                op2.id: f"({-op1.name} / {op2.name} ** 2)"}
         else:
             raise Exception(f"Op {self.operation} not implemented")
 
@@ -153,24 +141,19 @@ class ComputationGraph:
     def backward(self):
         gradient = {}
 
-        def dfs(node: OpNode, accumulated_product=1., acc_grad_exp=""):
+        def dfs(node: OpNode, accumulated_product=1.):
+            # calculates local grad and stores it
             node.backward()
             for parent in node.parents:
                 grad_elem = node.local_grad[parent.id]*accumulated_product
-                if acc_grad_exp == "":
-                    grad_exp = node.grad_exp[parent.id]
-                else:
-                    grad_exp = acc_grad_exp + " * " + node.grad_exp[parent.id]
+
                 if type(parent) is OpNode:
-                    dfs(parent, grad_elem, grad_exp)
+                    dfs(parent, grad_elem)
                 elif type(parent) is VariableNode:
                     # Set the gradient, terminate search
                     if not parent.grad:
                         parent.grad = 0.
                     parent.grad += grad_elem
-                    parent.grad_exp = grad_exp
-                    # A separate copy
-                    #gradient[parent.name] = (grad_elem, grad_exp)
                     gradient[parent.name] = grad_elem
 
         dfs(self.vertices[self.current_root])
