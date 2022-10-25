@@ -1,13 +1,16 @@
 import functools
+
 import networkx as nx
 import numpy as np
 import math
 
-import matplotlib
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+
+
 import pydot
 from networkx.drawing.nx_pydot import graphviz_layout
-
+import itertools
 from dataclasses import dataclass
 
 from typing import List, Union, Deque, Dict
@@ -29,17 +32,15 @@ class Node:
     def backward(self):
         raise NotImplementedError("")
 
-    def is_root(self):
-        return self.parents is None
-
-    def is_leaf(self):
-        return self.child is None
-
 
 class OpNode(Node):
+    cnt = 0
+
     def __init__(self, parents, child, op) -> None:
         super().__init__(parents, child, op)
         self.operation = op
+        self.result_name = f"f_{OpNode.cnt}"
+        OpNode.cnt += 1
         # intermediate result, cached
         #self.value = None
 
@@ -48,13 +49,23 @@ class OpNode(Node):
         Get the gradient of the output of this opnode w.r.t to all variable_nodes
         """
         gradient = {}
+
         def dfs(node: OpNode):
             # Some partial derivatices of common functions
             if node.operation == "+":
-                node.grad =  [1., 1.]
+                node.grad = {
+                    parent_node.id: 1. for parent_node in node.parents}
             elif node.operation == "*":
-                node.grad =  [self.parents[1].value, self.parents[0].value]
-        
+                node.grad = {parent_node.id: math.prod(
+                    [other_parent_node.value for other_parent_node in node.parents if other_parent_node != parent_node]) for parent_node in node.parents}
+
+            for parent in node.parents:
+                if type(parent) is not OpNode:
+                    continue
+                dfs(parent)
+
+        dfs(self)
+
 
 class VariableNode(Node):
     def __init__(self, name, val) -> None:
@@ -103,21 +114,49 @@ class ComputationGraph:
                 return "#E6BF00"
         v_colors = [node_type_to_color(
             self.vertices[node]) for node, attributes in self.nx_graph.nodes(data=True)]
-        pos = graphviz_layout(self.nx_graph, prog="dot")
+        node_positions = graphviz_layout(self.nx_graph, prog="dot")
 
         nx.draw_networkx_nodes(
-            self.nx_graph, pos=pos, node_color=v_colors, edgecolors="#000000", node_size=size * 300)
+            self.nx_graph, pos=node_positions, node_color=v_colors, edgecolors="#000000", node_size=size * 300)
         nx.draw_networkx_edges(
-            self.nx_graph, pos=pos)
+            self.nx_graph, pos=node_positions)
         node_labels = {node: attributes["ag_name"]
                        for node, attributes in self.nx_graph.nodes(data=True)}
-        nx.draw_networkx_labels(self.nx_graph, pos=pos, labels=node_labels,
+        nx.draw_networkx_labels(self.nx_graph, pos=node_positions, labels=node_labels,
                                 font_color='black', font_size=size * 7, font_weight="bold")
+        self.draw_node_result_labels(node_positions, size)
+        self.draw_edge_result_labels(node_positions, size)
 
-        result_labels = {node: "%.2f" % self.vertices[node].value
+    def draw_edge_result_labels(self, node_positions, size):
+        def get_edge_label(from_node_id, to_node_id):
+            to_node: OpNode = self.vertices[to_node_id]
+            from_node = self.vertices[from_node_id]
+            from_node_name = from_node.result_name if type(
+                from_node) is OpNode else from_node.name
+
+            partial_d_value = to_node.grad[from_node_id]
+            #return f"\\partial{{\\frac{{to_node.result_name}}{{from_node_name}}}} = " + "%.2f" % partial_d_value
+            return f"d{to_node.result_name}/{from_node_name} = " + "%.2f" % partial_d_value
+        result_labels = {(from_node, to_node): get_edge_label(from_node, to_node)
+                         for from_node, to_node, data in self.nx_graph.edges(data=True) if type(self.vertices[to_node]) == OpNode}
+        nx.draw_networkx_edge_labels(self.nx_graph, pos=node_positions, edge_labels=result_labels,
+                                            font_color='black', font_size=size * 5,
+                                            rotate=False)
+
+    def draw_node_result_labels(self, node_positions, size):
+        def op_node_label(node_id):
+            node = self.vertices[node_id]
+            if type(node) == OpNode:
+                return f"{node.result_name}=" + "%.2f" % node.value
+            else:
+                return f"{node.name}=" + "%.2f" % node.value
+
+        result_labels = {node: op_node_label(node)
                          for node, attributes in self.nx_graph.nodes(data=True)}
-        node_labels_pos = {node: (x, y-30) for node, (x, y) in pos.items()}
-        nx.draw_networkx_labels(self.nx_graph, pos=node_labels_pos, labels=result_labels,
+        op_nodes_positions = {node: (
+            x, y-30) for node, (x, y) in node_positions.items()}
+
+        nx.draw_networkx_labels(self.nx_graph, pos=op_nodes_positions, labels=result_labels,
                                 font_color='black', font_size=size * 5, verticalalignment="baseline")
 
 
@@ -235,44 +274,16 @@ class Perceptron():
 
 
 def sin(x):
-    if isinstance(x, DualNumber):
-        # mind the chain rule
-        return DualNumber(math.sin(x.x), math.cos(x.x) * x.dx)
-    elif isinstance(x, ReverseModeDualNumber):
+    if isinstance(x, ReverseModeDualNumber):
         x.append_unary_op("sin")
         return math.sin(x.val)
     else:
         return math.sin(x)
 
-# sin for Dualnumbers
 
+def test():
 
-def cos(x):
-    if type(x) is DualNumber:
-        # mind the chain rule
-        return DualNumber(math.cos(x.x), -math.sin(x.x) * x.dx)
-    else:
-        return math.cos(x)
-
-
-class dx:
-
-    def __init__(self, function):
-        self.function = function
-
-    def __call__(self, x):
-        dual_argument = None
-        if type(x) is DualNumber:
-            dual_argument = x
-        else:
-            dual_argument = DualNumber(x, 1.)
-        ret = self.function(dual_argument)
-        return
-
-
-def reverse_mode_test():
-
-    in_dim = 9
+    in_dim = 2
     p = Perceptron(in_features=in_dim)
 
     print(f"Pw is: {p.wheight}, {p.bias}")
@@ -280,9 +291,12 @@ def reverse_mode_test():
     x = np.arange(in_dim)
     res = p.forward(x)
 
+    res.backward()
+    for v in ReverseModeDualNumber.comp_graph.vertices:
+        print(f"V is {v.__dict__}")
     ReverseModeDualNumber.comp_graph.draw(size=2.)
 
     plt.show()
 
 
-reverse_mode_test()
+test()
