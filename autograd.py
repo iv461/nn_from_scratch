@@ -161,6 +161,22 @@ class ComputationGraph:
         self.insert_vertex(to_v)
         self.insert_edge(from_v, to_v)
 
+    def append_op(self, name, this_node, *other_operands):
+        node = OpNode(parents=[this_node, *
+                      other_operands], child=None, op=name)
+        ReverseModeDualNumber.comp_graph.insert_new_vertex_with_edge(
+            this_node, node)
+        for other_op in other_operands:
+            ReverseModeDualNumber.comp_graph.insert_edge(
+                other_op, node)
+        return node
+
+    def append_unary_op(self, name, this_node):
+        self.append_op(name, this_node)
+
+    def append_binary_op(self, name, this_node, other_v):
+        self.append_op(name, this_node, other_v)
+
     def backward(self):
         gradient = {}
 
@@ -247,6 +263,7 @@ class ComputationGraph:
                                 font_color='black', font_size=size * 5, verticalalignment="baseline")
 
 
+
 class ReverseModeDualNumber:
 
     comp_graph = ComputationGraph()
@@ -272,29 +289,17 @@ class ReverseModeDualNumber:
     def reset_graph(self):
         ReverseModeDualNumber.comp_graph = ComputationGraph()
 
-    def append_op(self, name, *other_operands):
-        node = OpNode(parents=[self.current_node, *
-                      other_operands], child=None, op=name)
-        ReverseModeDualNumber.comp_graph.insert_new_vertex_with_edge(
-            self.current_node, node)
-        for other_op in other_operands:
-            ReverseModeDualNumber.comp_graph.insert_edge(
-                other_op, node)
+    def update_current_node(self, node):
         self.current_node.child = node
         self.current_node = node
-
-    def append_unary_op(self, name):
-        self.append_op(name)
-
-    def append_binary_op(self, name, other_v):
-        self.append_op(name, other_v)
+    
 
     def __add__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(
                 f"Add with {other} of type {type(other)} not supported")
         assert other.value.shape == self.value.shape
-        self.append_binary_op("+", other.current_node)
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("+", self.current_node, other.current_node))
         self.value += other.value
         self.current_node.value = self.value
         return self
@@ -306,7 +311,7 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Sub with {type(other)} not supported")
         assert other.value.shape == self.value.shape
-        self.append_binary_op("-", other.current_node)
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("-", self.current_node, other.current_node))
         self.value -= other.value
         self.current_node.value = self.value
         return self
@@ -317,7 +322,7 @@ class ReverseModeDualNumber:
     def __mul__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
-        self.append_binary_op("*", other.current_node)
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("*", self.current_node, other.current_node))
         if isinstance(self.value, float) and isinstance(other.value, float):
             self.value *= other.value
         else:
@@ -332,11 +337,33 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
         assert other.value.shape == self.value.shape
-        self.append_binary_op("*", other.current_node)
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("*", self.current_node, other.current_node))
         self.value / other.value
         self.current_node.value = self.value
         return self
 
+
+
+# common functions
+
+def _max(op1:ReverseModeDualNumber, op2):
+    if not (isinstance(op2, float) or isinstance(op2, ReverseModeDualNumber)):
+        raise Exception("")
+    if isinstance(op2, float):
+        ConstantNode()
+    ReverseModeDualNumber.comp_graph.append_binary_op("max", op1.current_node)
+
+def max(op1, op2):
+    if not (isinstance(op1, ReverseModeDualNumber) or isinstance(op2, ReverseModeDualNumber)):
+        return max(op1, op2)
+    else:
+        if isinstance(op1, ReverseModeDualNumber):
+            return _max(op1, op2)
+        else:
+            return _max(op2, op1)
+
+            
+            
 
 class Perceptron():
     random_gen = np.random.default_rng(seed=123456)
