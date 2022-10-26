@@ -54,13 +54,22 @@ class OpNode(Node):
         same_shape = (op1.value.shape == op2.value.shape)
         if self.operation == "+":
             assert both_scalar or same_shape
-            self.local_grad = {
-                parent_node.id: 1. for parent_node in self.parents}
+            if not isinstance(op1.value, float):
+                self.local_grad = {
+                    parent_node.id: np.ones((len(op1.value),)) for parent_node in self.parents}
+            else:
+                self.local_grad = {
+                    parent_node.id: 1. for parent_node in self.parents}
         elif self.operation == "-":
             assert both_scalar or same_shape
-            self.local_grad = {
-                self.parents[0].id: 1.,
-                self.parents[1].id: -1.}
+            if not isinstance(op1.value, float):
+                self.local_grad = {
+                    self.parents[0].id: np.ones((len(op1.value),)),
+                    self.parents[1].id: -np.ones((len(op1.value),))}
+            else:
+                self.local_grad = {
+                    self.parents[0].id: 1.,
+                    self.parents[1].id: -1.}
         elif self.operation == "*":
             # only the case for Ax where A \in R^(n x m) and x \in R^m implemented currently
             assert both_scalar or same_shape or (
