@@ -3,6 +3,7 @@ import math
 
 from typing import Union, Tuple, Dict
 
+import autograd
 from autograd import ReverseModeDualNumber
 
 
@@ -85,8 +86,8 @@ class ReLu(Module):
     def __init__(self):
         super().__init__("ReLu")
 
-    def forward(self, x):
-        return np.max(x, 0)
+    def forward(self, x: Union[float, np.ndarray]):
+        return autograd.max(x, 0)
 
 
 class Sequential(Module):

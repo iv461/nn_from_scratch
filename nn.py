@@ -1,6 +1,3 @@
-import autograd.numpy as ag_np
-from autograd import grad
-
 import numpy as np
 import math
 

@@ -41,11 +41,7 @@ class OpNode(Node):
         OpNode.cnt += 1
         self.local_grad = None
 
-    def backward(self):
-        """
-        Get the gradient of the output of this opnode w.r.t to all the parents. 
-        This calculates the local gradient
-        """
+    def handle_binary_ops(self):
         assert len(self.parents) == 2
         # Some partial derivatices of common functions
         op1, op2 = self.parents[0], self.parents[1]
@@ -94,8 +90,51 @@ class OpNode(Node):
             self.local_grad = {
                 op1.id: 1. / op2.value,
                 op2.id: (-op1.value / op2.value ** 2)}
+        elif self.operation == "max":
+            assert both_scalar or same_shape
+            if both_scalar:
+                self.local_grad = {
+                    op1.id: float(op1.value > op2.value),
+                    op2.id: float(op2.value > op1.value)}
+            else:
+                """
+                 Does element-wise comparison with numpy, 
+                 if True, then it is converted to 1., otherwise zero. 
+                 The partial derivatives of the max(a, b)
+                  are for a 1 whem a is larger than b, otherwise 0 and vice-versa for b.
+                """
+                self.local_grad = {
+                    op1.id: (op1.value > op2.value).astype(float),
+                    op2.id: (op2.value > op1.value).astype(float)
+                }
         else:
-            raise Exception(f"Op {self.operation} not implemented")
+            raise Exception(f"Binary op {self.operation} not implemented")
+
+    def handle_unary_ops(self):
+        if self.operation == "mean" or self.operation == "sum" or self.operation == "square":
+            op1 = self.parents[0]
+            if isinstance(op1.value, float):
+                self.local_grad = {
+                    op1.id: 2. if self.operation == "square" else 1.
+                }
+            else:
+                normalizer = 1. if self.operation == "sum" else (
+                    1. / op1.value.size if self.operation == "mean" else 2.)
+                self.local_grad = {
+                    op1.id: normalizer * np.ones(op1.value.shape)
+                }
+        else:
+            raise Exception(f"Unary op {self.operation} not implemented")
+
+    def backward(self):
+        """
+        Get the gradient of the output of this opnode w.r.t to all the parents. 
+        This calculates the local gradient
+        """
+        if len(self.parents) == 1:
+            self.handle_unary_ops()
+        elif len(self.parents) == 2:
+            self.handle_binary_ops()
 
         if False:
             if self.operation == "+":
@@ -134,6 +173,7 @@ class ConstantNode(VariableNode):
 
 
 class ComputationGraph:
+
     def __init__(self) -> None:
         self.vertices = []
         self.edges = []
@@ -172,10 +212,10 @@ class ComputationGraph:
         return node
 
     def append_unary_op(self, name, this_node):
-        self.append_op(name, this_node)
+        return self.append_op(name, this_node)
 
     def append_binary_op(self, name, this_node, other_v):
-        self.append_op(name, this_node, other_v)
+        return self.append_op(name, this_node, other_v)
 
     def backward(self):
         gradient = {}
@@ -263,7 +303,6 @@ class ComputationGraph:
                                 font_color='black', font_size=size * 5, verticalalignment="baseline")
 
 
-
 class ReverseModeDualNumber:
 
     comp_graph = ComputationGraph()
@@ -292,14 +331,14 @@ class ReverseModeDualNumber:
     def update_current_node(self, node):
         self.current_node.child = node
         self.current_node = node
-    
 
     def __add__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(
                 f"Add with {other} of type {type(other)} not supported")
         assert other.value.shape == self.value.shape
-        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("+", self.current_node, other.current_node))
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op(
+            "+", self.current_node, other.current_node))
         self.value += other.value
         self.current_node.value = self.value
         return self
@@ -311,7 +350,8 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Sub with {type(other)} not supported")
         assert other.value.shape == self.value.shape
-        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("-", self.current_node, other.current_node))
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op(
+            "-", self.current_node, other.current_node))
         self.value -= other.value
         self.current_node.value = self.value
         return self
@@ -322,7 +362,8 @@ class ReverseModeDualNumber:
     def __mul__(self, other):
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
-        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("*", self.current_node, other.current_node))
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op(
+            "*", self.current_node, other.current_node))
         if isinstance(self.value, float) and isinstance(other.value, float):
             self.value *= other.value
         else:
@@ -337,21 +378,35 @@ class ReverseModeDualNumber:
         if not isinstance(other, ReverseModeDualNumber):
             raise Exception(f"Mul with {type(other)} not supported")
         assert other.value.shape == self.value.shape
-        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op("*", self.current_node, other.current_node))
+        self.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op(
+            "*", self.current_node, other.current_node))
         self.value / other.value
         self.current_node.value = self.value
         return self
 
 
-
 # common functions
 
-def _max(op1:ReverseModeDualNumber, op2):
+def _max(op1: ReverseModeDualNumber, op2: Union[ReverseModeDualNumber, float]):
     if not (isinstance(op2, float) or isinstance(op2, ReverseModeDualNumber)):
         raise Exception("")
     if isinstance(op2, float):
-        ConstantNode()
-    ReverseModeDualNumber.comp_graph.append_binary_op("max", op1.current_node)
+        # TODO name, add ability to make unique names
+        # Broadcast to be able to do max(np.array(...), 0)
+        if not isinstance(op1.value, float):
+            op2 = np.broadcast_to(op2, op1.value.shape)
+        node = ConstantNode(
+            name=f"c_{len(ReverseModeDualNumber.comp_graph.vertices)}", val=op2)
+        op1.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op(
+            "max", op1.current_node, node))
+        op1.value = np.max(op1.value, op2)
+    else:
+        op1.update_current_node(ReverseModeDualNumber.comp_graph.append_binary_op(
+            "max", op1.current_node, op2.current_node))
+        op1.value = np.max(op1.value, op2.value)
+    op1.current_node.value = op1.value
+    return op1
+
 
 def max(op1, op2):
     if not (isinstance(op1, ReverseModeDualNumber) or isinstance(op2, ReverseModeDualNumber)):
@@ -362,8 +417,30 @@ def max(op1, op2):
         else:
             return _max(op2, op1)
 
-            
-            
+
+def mean(op1: ReverseModeDualNumber):
+    op1.update_current_node(
+        ReverseModeDualNumber.comp_graph.append_unary_op("mean", op1.current_node))
+    op1.value = np.mean(op1.value)
+    op1.current_node.value = op1.value
+    return op1
+
+
+def sum(op1: ReverseModeDualNumber):
+    op1.update_current_node(
+        ReverseModeDualNumber.comp_graph.append_unary_op("sum", op1.current_node))
+    op1.value = np.sum(op1.value)
+    op1.current_node.value = op1.value
+    return op1
+
+
+def square(op1: ReverseModeDualNumber):
+    op1.update_current_node(ReverseModeDualNumber.comp_graph.append_unary_op(
+        "square", op1.current_node))
+    op1.value = np.square(op1.value)
+    op1.current_node.value = op1.value
+    return op1
+
 
 class Perceptron():
     random_gen = np.random.default_rng(seed=123456)
