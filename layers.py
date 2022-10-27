@@ -88,7 +88,7 @@ class Linear(Module):
         if out_features == 1:
             wheights_tensor_shape = (in_features,)
         else:
-            wheights_tensor_shape = (in_features, out_features)
+            wheights_tensor_shape = (out_features, in_features)
         bias_tensor_shape = out_features
         self.wheight = Parameter("w", self.uniform_initializer(
             -k_sqrt, k_sqrt, wheights_tensor_shape))
@@ -144,15 +144,14 @@ def test_perceptron():
 
 def test_linear():
 
-    in_dim = 2
+    in_dim = 3
     l = Linear(in_features=in_dim, out_features=2)
 
     print(f"Linear layer: w: {l.wheight}, b: {l.bias}")
     params = l.get_parameters()
     print(f"params: {params}")
 
-    x = np.arange(in_dim)
-    x_t = Tensor(x, "x", is_variable=False)
+    x_t = Tensor(np.arange(in_dim), "x", is_variable=False)
 
     res = l.forward(x_t)
 
@@ -173,14 +172,9 @@ def test_sequential_model():
         Linear(512, out_dim)
     ])
     nn_params = nn_model.get_parameters()
-
     print(f"NN params: {nn_params}")
 
-    params = nn_model.get_parameters()
-    print(f"params: {params}")
-
-    x = np.arange(in_dim)
-    x_t = Tensor(x, "x", is_variable=False)
+    x_t = Tensor(np.arange(in_dim), "x", is_variable=False)
     res = nn_model.forward(x_t)
 
     print(f"Result: {res}")
@@ -189,6 +183,6 @@ def test_sequential_model():
 
 
 if __name__ == "__main__":
-    test_perceptron()
+    # test_perceptron()
     test_linear()
-    # test_sequential_model()
+    test_sequential_model()

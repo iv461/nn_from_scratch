@@ -89,7 +89,7 @@ class Tensor(Node):
         elif self.operation == "*":
             # only the case for Ax where A \in R^(n x m) and x \in R^m implemented currently
             assert both_scalar_or_same_shape or (
-                op1.value.ndim == 2 and op1.value.shape[0] == op1.value.shape[1] and op2.value.ndim == 1 and op1.value.shape[0] == op2.value.shape[0])
+                op1.value.ndim == 2 and op2.value.ndim == 1 and op1.value.shape[1] == op2.value.shape[0])
             if both_scalar:
                 self.local_grad = {op1.id: op2.value, op2.id: op1.value}
             elif op1.value.ndim == 2 and op2.value.ndim == 1:  # scalar and scalar product between vectors case
