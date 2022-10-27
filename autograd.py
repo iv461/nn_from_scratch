@@ -1,4 +1,5 @@
 import functools
+from tkinter import E
 import networkx as nx
 import numpy as np
 import math
@@ -40,7 +41,8 @@ class Tensor(Node):
     def __init__(self, value: np.ndarray, name: Union[str, None], is_variable=True, parents=None, op=None) -> None:
         if not name:
             # TODO fix
-            name = f"f_{Tensor.cnt}"
+            prefix = "f" if is_variable else "c"
+            name = f"{prefix}_{Tensor.cnt}"
             Tensor.cnt += 1
 
         super().__init__(parents, None, name)
@@ -242,8 +244,7 @@ def _max(op1: Tensor, op2: Union[Tensor, float]):
         # Broadcast to be able to do max(np.array(...), 0)
         if not isinstance(op1.value, float):
             op2 = np.broadcast_to(op2, op1.value.shape)
-        op2_t = Tensor(value=op2,
-                       name=f"c_{len(Tensor.comp_graph.vertices)}", is_variable=False)
+        op2_t = Tensor(value=op2, name=None, is_variable=False)
     op2_t = op2
     return Tensor(np.max(op1.value, op2.value), None, True, [op1, op2_t], "max")
 
@@ -275,10 +276,20 @@ def build_networkx_graph(root_node: Tensor):
 
     def dfs(node: Tensor):
         # attribute with the key "'name'" collides when converting to dot with pydot, thus we name id "ag_name"
+        if node.operation:
+            print(f"Adding node {node.name}({node.operation})")
+        else:
+            print(f"Adding node {node.name}({node.id})")
         nx_graph.add_node(node, ag_name=node.name)
         if not node.parents:
             return
         for parent in node.parents:
+            if parent.operation:
+                print(
+                    f"Adding edge from node {node.name}({node.id}) to {parent.name}({parent.operation})")
+            else:
+                print(
+                    f"Adding edge from node {node.name}({node.id}) to {parent.name}({parent.id})")
             nx_graph.add_edge(node, parent)
             dfs(parent)
     dfs(root_node)
