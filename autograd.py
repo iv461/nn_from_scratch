@@ -236,7 +236,7 @@ class ComputationGraph:
                     gradient[parent.name] = grad_elem
 
         dfs(self.vertices[self.current_root])
-        print(f"Grad is: {gradient}")
+        return gradient
 
     def draw(self, size=1.):
         def node_type_to_color(node: Node):
@@ -322,7 +322,7 @@ class ReverseModeDualNumber:
                 self.current_node)
 
     def backward(self):
-        ReverseModeDualNumber.comp_graph.backward()
+        return ReverseModeDualNumber.comp_graph.backward()
 
     @classmethod
     def reset_graph(self):

@@ -1,7 +1,7 @@
 import numpy as np
 import math
 
-from layers import Linear
+from layers import Linear, ReLu, Sequential, Tensor
 from losses import mse_loss
 
 import matplotlib
@@ -11,49 +11,39 @@ matplotlib.use("Qt5Agg")
 
 
 def f(x):
+    """
+    The function to approximate
+    """
     return np.sin(x) + .3 * np.exp(x)
-
-
-def vectorize(f):
-    def vectorized(x_vals):
-        output = []
-        for x in x_vals:
-            output.append(f(x))
-        return output
-    return vectorized
 
 
 class GradientDescent:
     """
     """
 
-    def update(self, x, f, lr):
-        gradient = grad(f)(x)
-        return x - gradient * lr
+    def __init__(self, params: np.ndarray, lr: float):
+        self.params = params
+        self.lr = lr
 
-
-class Momentum:
-    def __init__(self) -> None:
-        self.moment = 0
-
-    def update(self, x, f, lr):
-        gradient = grad(f)(x)
-        new_x = x - gradient * lr + .1 * self.moment
-        self.moment += gradient * lr
-        print(f"self.moment: {self.moment}")
-        return new_x
+    def step(self, gradient):
+        # TODO get grad from self.params.grad after refactoring
+        return np.subtract(self.params, gradient * self.lr, out=self.params)
 
 
 def train():
 
     interval = [-5, 5.]
     x_vals = np.linspace(*interval, num=100)
-    plt.plot(x_vals, vectorize(f)(x_vals))
+    plt.plot(x_vals, np.vectorize(f)(x_vals))
     plt.xlim(tuple(interval))
+
+    model = Sequential(Linear(in_features=1, out=5), ReLu(),
+                       Linear(in_features=5, out_features=1))
 
     x_v = 4.
     steps = []
     opt = GradientDescent()
+    loss = mse_loss
     for i in range(1000):
 
         steps.append(x_v)
@@ -67,6 +57,3 @@ def train():
     plt.scatter(steps, vectorize(f)(steps), color="g")
 
     plt.show()
-
-
-train()
