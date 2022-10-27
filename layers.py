@@ -4,26 +4,17 @@ import math
 from typing import Union, Tuple, Dict
 
 import autograd
-from autograd import ReverseModeDualNumber
-
-
-class Tensor(ReverseModeDualNumber):
-    """
-    wrapper around an NDarray with autograd support
-    """
-
-    def __init__(self, name, value: np.ndarray, is_variable: bool = True) -> None:
-        super().__init__(value, name, variable=is_variable)
+from autograd import Tensor, draw_computation_graph
 
 
 class Parameter(Tensor):
     """
-    A type just to be able to detect what is a param. 
-    A Parameter is trainable 
+    A type just to be able to detect what is a param.
+    A Parameter is trainable
     """
 
     def __init__(self, name, value: np.ndarray) -> None:
-        super().__init__(name, value)
+        super().__init__(value, name)
 
 
 class Module:
@@ -34,13 +25,12 @@ class Module:
         self.name = name
 
     def get_parameters(self):
-        return [v.value for k, v in self.__dict__.items() if isinstance(v, Parameter)]
+        return {v.id: v for k, v in self.__dict__.items() if isinstance(v, Parameter)}
 
-    def forward(self):
+    def forward(self, x: Tensor):
         ...
 
     def uniform_initializer(self, low_bound, upper_bound, shape: tuple):
-        print(f"shape in init {shape}")
         if isinstance(shape, tuple):
             number_of_samples = np.product(list(shape))
         else:
@@ -50,6 +40,35 @@ class Module:
         if isinstance(shape, tuple):
             samples = samples.reshape(*shape)
         return samples
+
+
+class Perceptron(Module):
+    """
+    Simple perceptron to test the scalar case of the computation graph with autograd of the Tensor
+    """
+
+    def __init__(self, in_features):
+        super().__init__("Perceptron")
+        self.in_features = in_features
+
+        k = 1. / in_features
+        k_sqrt = math.sqrt(k)
+        init_vals = self.uniform_initializer(
+            -k_sqrt, k_sqrt, in_features+1)
+
+        self.wheight = [Tensor(
+            init_vals[i], name=f"w{i}") for i in range(self.in_features)]
+
+        self.bias = Tensor(init_vals[-1], name="b")
+
+    def forward(self, x: list[Tensor]):
+        assert len(x) == self.in_features
+        dot_prod = x[0] * self.wheight[0]
+        for i, (x_i, w_i) in enumerate(zip(x, self.wheight)):
+            if i == 0:
+                continue
+            dot_prod += x_i * w_i
+        return dot_prod + self.bias
 
 
 class Linear(Module):
@@ -86,7 +105,7 @@ class ReLu(Module):
     def __init__(self):
         super().__init__("ReLu")
 
-    def forward(self, x: Union[float, np.ndarray]):
+    def forward(self, x: Tensor):
         return autograd.max(x, 0)
 
 
@@ -97,13 +116,30 @@ class Sequential(Module):
         self.layers = layers
 
     def get_parameters(self):
-        return [param for layer in self.layers for param in layer.get_parameters()]
+        return {param_name: param for layer in self.layers for param_name, param in layer.get_parameters().items()}
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         result = x
         for layer in self.layers:
             result = layer.forward(result)
         return result
+
+
+def test_perceptron():
+    in_dim = 3
+    p = Perceptron(in_features=in_dim)
+
+    print(f"Perceptron params: {p.wheight}, {p.bias}")
+
+    x = np.arange(in_dim)
+    # We create a list of tensors to test the scalar case, normally we wouldn't do this
+    x_t = [Tensor(float(x_i), f"x_{i}", is_variable=False)
+           for i, x_i in enumerate(x)]
+    res = p.forward(x_t)
+
+    res.backward()
+
+    draw_computation_graph(res, 2.)
 
 
 def test_linear():
@@ -116,38 +152,43 @@ def test_linear():
     print(f"params: {params}")
 
     x = np.arange(in_dim)
-    res = l.forward(x)
+    x_t = Tensor(x, "x", is_variable=False)
 
-    print(f"res: {res}")
+    res = l.forward(x_t)
 
+    print(f"Result: {res}")
+    res.backward()
+    draw_computation_graph(res, 2.)
+
+
+def test_sequential_model():
+
+    in_dim = 28*28
+    out_dim = 10
     nn_model = Sequential([
-        Linear(28*28, 512),
+        Linear(in_dim, 512),
         ReLu(),
         Linear(512, 512),
         ReLu(),
-        Linear(512, 10)
+        Linear(512, out_dim)
     ])
     nn_params = nn_model.get_parameters()
+
     print(f"NN params: {nn_params}")
 
-
-def test_linear_autograd():
-
-    in_dim = 2
-    l = Linear(in_features=in_dim, out_features=2)
-
-    print(f"Linear layer: w: {l.wheight}, b: {l.bias}")
-    params = l.get_parameters()
+    params = nn_model.get_parameters()
     print(f"params: {params}")
 
-    input_t = Tensor("x", np.arange(in_dim), is_variable=False)
-    res = l.forward(input_t)
+    x = np.arange(in_dim)
+    x_t = Tensor(x, "x", is_variable=False)
+    res = nn_model.forward(x_t)
 
+    print(f"Result: {res}")
     res.backward()
-
-    ReverseModeDualNumber.comp_graph.draw(size=2.)
+    draw_computation_graph(res, 2.)
 
 
 if __name__ == "__main__":
-    # test_linear()
-    test_linear_autograd()
+    test_perceptron()
+    test_linear()
+    # test_sequential_model()

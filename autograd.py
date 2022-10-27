@@ -1,23 +1,16 @@
-import functools
-import networkx as nx
 import numpy as np
 import math
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
+from typing import Union
 
-
-import pydot
+import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
-import itertools
-from dataclasses import dataclass
-
-from typing import List, Union, Deque, Dict
+import matplotlib.pyplot as plt
 
 
 class Node:
     """
-    node in computation graph
+    Node in computation graph
     """
     id_cnt = 0
 
@@ -34,7 +27,6 @@ class Node:
 
 
 class Tensor(Node):
-
     cnt = 0
 
     def __init__(self, value: np.ndarray, name: Union[str, None], is_variable=True, parents=None, op=None) -> None:
@@ -45,19 +37,31 @@ class Tensor(Node):
             Tensor.cnt += 1
 
         super().__init__(parents, None, name)
+        """
+        The value of the variable or contant,
+         or the result of an operation if this node is an operation,
+          in this case it is calculated and stored during the forward pass
+        """
         self.value = value
+        # The gradient vecto
         self.grad = None
         # String expression of the gradient, for debug
         self.grad_exp = None
         # Wheter it is a variable and thus a gradient needs to be calculated w.r.t to it
         self.is_variable = is_variable
-        # name of operation which produced this tensor, can be none if leaf
+        # name of operation which produced this tensor, can be none if the node is a variable or constant
         self.operation = op
+        # The local gradient vector, it is a dict from the Ids of the parent nodes as key
+        # and the local partial derivatives to these parent nodes.
+        # It can be calculated when the operation and the number of operands including their dimensions is known.
         self.local_grad = None
 
     def calc_local_grad_binary_ops(self):
+        """
+        Calculates the "local" partial derivatives of this function, for common binary operations like +, -, * etc.
+        """
         assert len(self.parents) == 2
-        # Some partial derivatices of common functions
+
         op1, op2 = self.parents[0], self.parents[1]
         both_scalar = (isinstance(op1.value, float)
                        and isinstance(op2.value, float))
@@ -113,8 +117,8 @@ class Tensor(Node):
                     op2.id: float(op2.value > op1.value)}
             else:
                 """
-                 Does element-wise comparison with numpy, 
-                 if True, then it is converted to 1., otherwise zero. 
+                 Does element-wise comparison with numpy,
+                 if True, then it is converted to 1., otherwise zero.
                  The partial derivatives of the max(a, b)
                   are for a 1 whem a is larger than b, otherwise 0 and vice-versa for b.
                 """
@@ -126,6 +130,10 @@ class Tensor(Node):
             raise Exception(f"Binary op {self.operation} not implemented")
 
     def calc_local_grad_unary_ops(self):
+        """
+        Calculates the "local" partial derivatives of this function, 
+        for common unary operations like unary sum (including single operand case), mean and square
+        """
         if self.operation == "mean" or self.operation == "sum" or self.operation == "square":
             op1 = self.parents[0]
             if isinstance(op1.value, float):
@@ -143,7 +151,7 @@ class Tensor(Node):
 
     def calc_local_gradient(self):
         """
-        Get the gradient of the output of this opnode w.r.t to all the parents. 
+        Get the gradient of the output of this opnode w.r.t to all the parents.
         This calculates the local gradient
         """
         if len(self.parents) == 1:
@@ -174,7 +182,7 @@ class Tensor(Node):
 
     def backward(self, clear=False):
         """
-        runs backprop
+        Runs backprop, returns dict of the Tensor names as dict
         """
         gradient = {}
         # TODO vector-valued output, multiply parent with child
@@ -238,7 +246,6 @@ def _max(op1: Tensor, op2: Union[Tensor, float]):
     if not (isinstance(op2, float) or isinstance(op2, Tensor)):
         raise Exception("")
     if isinstance(op2, float):
-
         # TODO name, add ability to make unique names
         # Broadcast to be able to do max(np.array(...), 0)
         if not isinstance(op1.value, float):
@@ -273,7 +280,7 @@ def square(op1: Tensor):
 def build_networkx_graph(root_node: Tensor):
     """
     Builds a networksx computation graph from the tensor tree, for debug visualization.
-    We have to put the node objects as data, otherwise the graphviz_layout function throws an exception, 
+    We have to put the node objects as data, otherwise the graphviz_layout function throws an exception,
     it seems that this is a bug in networkx.
     """
     nx_graph = nx.DiGraph()
@@ -289,7 +296,9 @@ def build_networkx_graph(root_node: Tensor):
     return nx_graph
 
 
-def draw_computation_graph(nx_graph, size=1.):
+def draw_computation_graph(root_tensor: Tensor, size=1.):
+    nx_graph = build_networkx_graph(root_tensor)
+
     def node_type_to_color(node: Tensor):
         if node.operation:
             return "#E6BF00"
@@ -362,59 +371,3 @@ def draw_node_result_labels(nx_graph, node_positions, size):
         node_id, pos) for node_id, pos in node_positions.items()}
     nx.draw_networkx_labels(nx_graph, pos=op_nodes_positions, labels=result_labels,
                             font_color='black', font_size=size * 5, verticalalignment="baseline")
-
-
-class Perceptron():
-    random_gen = np.random.default_rng(seed=123456)
-
-    def __init__(self, in_features):
-        self.in_features = in_features
-
-        k = 1. / in_features
-        k_sqrt = math.sqrt(k)
-        init_vals = Perceptron.random_gen.uniform(
-            -k_sqrt, k_sqrt, in_features+1)
-        self.wheight = [Tensor(
-            init_vals[i], name=f"w{i}") for i in range(self.in_features)]
-
-        self.bias = Tensor(init_vals[-1], name="b")
-
-    def forward(self, x):
-        assert len(x) == self.in_features
-        x_dual_num = [Tensor(
-            float(x_i), f"x_{i}", is_variable=False) for i, x_i in enumerate(x)]
-
-        dot_prod = x_dual_num[0] * self.wheight[0]
-        for i, (x_i, w_i) in enumerate(zip(x_dual_num, self.wheight)):
-            if i == 0:
-                continue
-            dot_prod += x_i * w_i
-        return dot_prod + self.bias
-
-
-def sin(x):
-    if isinstance(x, Tensor):
-        x.append_unary_op("sin")
-        return math.sin(x.value)
-    else:
-        return math.sin(x)
-
-
-def test():
-
-    in_dim = 3
-    p = Perceptron(in_features=in_dim)
-
-    print(f"Pw is: {p.wheight}, {p.bias}")
-
-    x = np.arange(in_dim)
-    res = p.forward(x)
-
-    res.backward()
-
-    nx_graph = build_networkx_graph(res)
-    draw_computation_graph(nx_graph, 2.)
-
-
-if __name__ == "__main__":
-    test()
