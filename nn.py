@@ -69,4 +69,4 @@ def train():
     plt.show()
 
 
-train()
+# train()
