@@ -1,5 +1,4 @@
 import functools
-from tkinter import E
 import networkx as nx
 import numpy as np
 import math
@@ -272,25 +271,19 @@ def square(op1: Tensor):
 
 
 def build_networkx_graph(root_node: Tensor):
+    """
+    Builds a networksx computation graph from the tensor tree, for debug visualization.
+    We have to put the node objects as data, otherwise the graphviz_layout function throws an exception, 
+    it seems that this is a bug in networkx.
+    """
     nx_graph = nx.DiGraph()
 
     def dfs(node: Tensor):
-        # attribute with the key "'name'" collides when converting to dot with pydot, thus we name id "ag_name"
-        if node.operation:
-            print(f"Adding node {node.name}({node.operation})")
-        else:
-            print(f"Adding node {node.name}({node.id})")
-        nx_graph.add_node(node, ag_name=node.name)
+        nx_graph.add_node(node.id, ag_tensor=node)
         if not node.parents:
             return
         for parent in node.parents:
-            if parent.operation:
-                print(
-                    f"Adding edge from node {node.name}({node.id}) to {parent.name}({parent.operation})")
-            else:
-                print(
-                    f"Adding edge from node {node.name}({node.id}) to {parent.name}({parent.id})")
-            nx_graph.add_edge(node, parent)
+            nx_graph.add_edge(parent.id, node.id)
             dfs(parent)
     dfs(root_node)
     return nx_graph
@@ -305,7 +298,7 @@ def draw_computation_graph(nx_graph, size=1.):
         else:
             return "#0044cc"
     v_colors = [node_type_to_color(
-        node) for node, attributes in nx_graph.nodes(data=True)]
+        attributes["ag_tensor"]) for node, attributes in nx_graph.nodes(data=True)]
 
     node_positions = graphviz_layout(nx_graph, prog="dot")
 
@@ -313,7 +306,13 @@ def draw_computation_graph(nx_graph, size=1.):
         nx_graph, pos=node_positions, node_color=v_colors, edgecolors="#000000", node_size=size * 300)
     nx.draw_networkx_edges(
         nx_graph, pos=node_positions)
-    node_labels = {node: node.name
+
+    def get_node_tag(node: Tensor):
+        if node.operation:
+            return node.operation
+        return node.name
+
+    node_labels = {node: get_node_tag(attributes["ag_tensor"])
                    for node, attributes in nx_graph.nodes(data=True)}
     nx.draw_networkx_labels(nx_graph, pos=node_positions, labels=node_labels,
                             font_color='black', font_size=size * 7, font_weight="bold")
@@ -322,13 +321,22 @@ def draw_computation_graph(nx_graph, size=1.):
     plt.show()
 
 
+def get_tensor_from_id(nx_graph, node_id):
+    return nx_graph.nodes[node_id]["ag_tensor"]
+
+
 def draw_edge_result_labels(nx_graph, node_positions, size):
-    def get_edge_label(from_node, to_node):
-        from_node_name = from_node.result_name if from_node.op else from_node.name
-        partial_d_value = to_node.local_grad[from_node.id]
-        return f"d{to_node.result_name}/{from_node_name} = " + str(partial_d_value)
+
+    def get_edge_label(from_node: Tensor, to_node: Tensor):
+        from_node, to_node = get_tensor_from_id(nx_graph,
+                                                from_node), get_tensor_from_id(nx_graph, to_node)
+        partial_d = to_node.local_grad[from_node.id]
+        partial_d_str = "%.2f" % partial_d if isinstance(
+            partial_d, float) else str(partial_d)
+        return f"d{to_node.name}/{from_node.name} = " + partial_d_str
+
     result_labels = {(from_node, to_node): get_edge_label(from_node, to_node)
-                     for from_node, to_node, data in nx_graph.edges(data=True) if to_node.op}
+                     for from_node, to_node in nx_graph.edges() if get_tensor_from_id(nx_graph, to_node).operation}
 
     nx.draw_networkx_edge_labels(nx_graph, pos=node_positions, edge_labels=result_labels,
                                  font_color='black', font_size=size * 5,
@@ -337,17 +345,16 @@ def draw_edge_result_labels(nx_graph, node_positions, size):
 
 def draw_node_result_labels(nx_graph, node_positions, size):
     def op_node_label(node: Tensor):
-        if node.operation:
-            return f"{node.result_name}=" + str(node.value)
-        else:
-            return f"{node.name}=" + str(node.value)
-    result_labels = {node: op_node_label(node)
+        value_str = "%.2f" % node.value if isinstance(
+            node.value, float) else str(node.value)
+        return f"{node.name}={value_str}"
+    result_labels = {node: op_node_label(attributes["ag_tensor"])
                      for node, attributes in nx_graph.nodes(data=True)}
 
-    def get_node_pos(node, pos):
+    def get_node_pos(node_id, pos):
         x, y = pos
         # Draw for op-nodes the result on the bottom
-        if node.operation:
+        if get_tensor_from_id(nx_graph, node_id).operation:
             return (x, y-10)
         else:
             return (x, y+10)
