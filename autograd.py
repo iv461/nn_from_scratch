@@ -243,8 +243,10 @@ def _max(op1: Tensor, op2: Union[Tensor, float]):
         if not isinstance(op1.value, float):
             op2 = np.broadcast_to(op2, op1.value.shape)
         op2_t = Tensor(value=op2, name=None, is_variable=False)
-    op2_t = op2
-    return Tensor(np.max(op1.value, op2.value), None, True, [op1, op2_t], "max")
+    else:
+        op2_t = op2
+    val = np.maximum(op1.value, op2_t.value)
+    return Tensor(val, None, True, [op1, op2_t], "max")
 
 
 def max(op1, op2):

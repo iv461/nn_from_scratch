@@ -2,6 +2,7 @@ import numpy as np
 import math
 
 from layers import Linear, ReLu, Sequential, Tensor
+from autograd import Node
 from losses import mse_loss
 
 import matplotlib
@@ -44,9 +45,20 @@ def train():
     steps = []
     opt = GradientDescent()
     loss = mse_loss
+
+    model.forward(x)
+    id_count_Tensor_init = Tensor.id_cnt
+    id_count_Node_init = Node.id_cnt
+
     for i in range(1000):
 
+        # TODO workaround, fix properly
+        Node.id_cnt = id_count_Node_init
+        Tensor.id_cnt = id_count_Node_init
+
         steps.append(x_v)
+        model.forward(x)
+
         new_x = opt.update(x_v, f, .002)
 
         if abs(new_x - x_v) < 0.001:

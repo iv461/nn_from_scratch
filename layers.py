@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import math
 
@@ -106,7 +107,7 @@ class ReLu(Module):
         super().__init__("ReLu")
 
     def forward(self, x: Tensor):
-        return autograd.max(x, 0)
+        return autograd.max(x, 0.)
 
 
 class Sequential(Module):
@@ -175,14 +176,15 @@ def test_sequential_model():
     print(f"NN params: {nn_params}")
 
     x_t = Tensor(np.arange(in_dim), "x", is_variable=False)
+
     res = nn_model.forward(x_t)
 
-    print(f"Result: {res}")
+    print(f"Result: {res.value}")
     res.backward()
-    draw_computation_graph(res, 2.)
+    #draw_computation_graph(res, 2.)
 
 
 if __name__ == "__main__":
-    test_perceptron()
+    # test_perceptron()
     # test_linear()
-    # test_sequential_model()
+    test_sequential_model()
