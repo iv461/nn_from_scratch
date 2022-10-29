@@ -56,10 +56,10 @@ class Perceptron(Module):
         init_vals = self.uniform_initializer(
             -k_sqrt, k_sqrt, in_features+1)
 
-        self.wheight = [Tensor(
-            init_vals[i], name=f"w{i}") for i in range(self.in_features)]
+        self.wheight = [Tensor(np.array(init_vals[i]),
+                               name=f"w{i}") for i in range(self.in_features)]
 
-        self.bias = Tensor(init_vals[-1], name="b")
+        self.bias = Tensor(np.array(init_vals[-1]), name="b")
 
     def forward(self, x: list[Tensor]):
         assert len(x) == self.in_features
@@ -133,7 +133,7 @@ def test_perceptron():
 
     x = np.arange(in_dim)
     # We create a list of tensors to test the scalar case, normally we wouldn't do this
-    x_t = [Tensor(float(x_i), f"x_{i}", is_variable=False)
+    x_t = [Tensor(np.array(x_i), f"x_{i}", is_variable=False)
            for i, x_i in enumerate(x)]
     res = p.forward(x_t)
 
@@ -183,6 +183,6 @@ def test_sequential_model():
 
 
 if __name__ == "__main__":
-    # test_perceptron()
-    test_linear()
-    test_sequential_model()
+    test_perceptron()
+    # test_linear()
+    # test_sequential_model()

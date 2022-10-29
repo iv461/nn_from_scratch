@@ -63,29 +63,21 @@ class Tensor(Node):
         assert len(self.parents) == 2
 
         op1, op2 = self.parents[0], self.parents[1]
-        both_scalar = (isinstance(op1.value, float)
-                       and isinstance(op2.value, float))
+        both_scalar = op1.value.ndim == 0 and op2.value.ndim == 0
         both_scalar_or_same_shape = both_scalar or (
             op1.value.shape == op2.value.shape)
 
         if self.operation == "+":
             assert both_scalar_or_same_shape
-            if not isinstance(op1.value, float):
-                self.local_grad = {
-                    parent_node.id: np.ones((len(op1.value),)) for parent_node in self.parents}
-            else:
-                self.local_grad = {
-                    parent_node.id: 1. for parent_node in self.parents}
+            self.local_grad = {
+                parent_node.id: np.ones(op1.value.shape) for parent_node in self.parents}
+
         elif self.operation == "-":
             assert both_scalar_or_same_shape
-            if not isinstance(op1.value, float):
-                self.local_grad = {
-                    self.parents[0].id: np.ones((len(op1.value),)),
-                    self.parents[1].id: -np.ones((len(op1.value),))}
-            else:
-                self.local_grad = {
-                    self.parents[0].id: 1.,
-                    self.parents[1].id: -1.}
+            self.local_grad = {
+                self.parents[0].id: np.ones(op1.value.shape),
+                self.parents[1].id: -np.ones(op1.value.shape)}
+
         elif self.operation == "*":
             # only the case for Ax where A \in R^(n x m) and x \in R^m implemented currently
             assert both_scalar_or_same_shape or (
@@ -136,16 +128,11 @@ class Tensor(Node):
         """
         if self.operation == "mean" or self.operation == "sum" or self.operation == "square":
             op1 = self.parents[0]
-            if isinstance(op1.value, float):
-                self.local_grad = {
-                    op1.id: 2. if self.operation == "square" else 1.
-                }
-            else:
-                normalizer = 1. if self.operation == "sum" else (
-                    1. / op1.value.size if self.operation == "mean" else 2.)
-                self.local_grad = {
-                    op1.id: normalizer * np.ones(op1.value.shape)
-                }
+            normalizer = 1. if self.operation == "sum" else (
+                1. / op1.value.size if self.operation == "mean" else 2.)
+            self.local_grad = {
+                op1.id: normalizer * np.ones(op1.value.shape)
+            }
         else:
             raise Exception(f"Unary op {self.operation} not implemented")
 
@@ -187,10 +174,15 @@ class Tensor(Node):
         gradient = {}
         # TODO vector-valued output, multiply parent with child
 
-        def dfs(node: Tensor, accumulated_product=1.):
+        def dfs(node: Tensor, accumulated_product=np.array(1.)):
             node.calc_local_gradient()
             for parent in node.parents:
-                grad_elem = node.local_grad[parent.id] * accumulated_product
+                # HINT: We sum over the partial derivatives of a vector-valued intermediate function to obtain the gradient
+                # TODO do with numpy, idk how to broadcast
+                grad_elem = np.zeros(node.local_grad[parent.id].shape)
+                for acc_i in accumulated_product.flatten():
+                    grad_elem += node.local_grad[parent.id] * acc_i
+
                 if parent.operation:
                     dfs(parent, grad_elem)
                 else:
@@ -231,7 +223,7 @@ class Tensor(Node):
     def __mul__(self, other):
         if not isinstance(other, Tensor):
             raise Exception(f"Mul with {type(other)} not supported")
-        if isinstance(self.value, float) and isinstance(other.value, float):
+        if self.value.ndim == 0 and other.value.ndim == 0:
             result = self.value * other.value
         else:
             result = np.matmul(self.value, other.value)
@@ -339,9 +331,13 @@ def draw_edge_result_labels(nx_graph, node_positions, size):
     def get_edge_label(from_node: Tensor, to_node: Tensor):
         from_node, to_node = get_tensor_from_id(nx_graph,
                                                 from_node), get_tensor_from_id(nx_graph, to_node)
-        partial_d = to_node.local_grad[from_node.id]
-        partial_d_str = "%.2f" % partial_d if isinstance(
-            partial_d, float) else str(partial_d)
+        # Enable drawing before the backward pass
+        if to_node.local_grad is not None:
+            partial_d = to_node.local_grad[from_node.id]
+            partial_d_str = "%.2f" % partial_d if isinstance(
+                partial_d, float) else str(partial_d)
+        else:
+            partial_d_str = "Unknown"
         return f"d{to_node.name}/{from_node.name} = " + partial_d_str
 
     result_labels = {(from_node, to_node): get_edge_label(from_node, to_node)
