@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import math
 
@@ -175,22 +176,50 @@ class Tensor(Node):
         # TODO vector-valued output, multiply parent with child
 
         def dfs(node: Tensor, accumulated_product=np.array(1.)):
+            start_ = time.perf_counter()
             node.calc_local_gradient()
+            end_ = time.perf_counter()
+            print(f"Local grad took calc " + "%.2f" %
+                  ((end_ - start_)*1000.) + "ms")
             for parent in node.parents:
                 # HINT: We sum over the partial derivatives of a vector-valued intermediate function to obtain the gradient
                 # TODO do with numpy, idk how to broadcast
+                """
+                Same as:
+
                 grad_elem = np.zeros(node.local_grad[parent.id].shape)
                 for acc_i in accumulated_product.flatten():
-                    grad_elem += node.local_grad[parent.id] * acc_i
+                    grad_elem += node.local_grad[parent.id].flatten() * acc_i
 
+                but fast
+                """
+                a = accumulated_product.flatten()
+                b_old_shape = tuple(node.local_grad[parent.id].shape)
+                b = node.local_grad[parent.id].flatten()
+                start_ = time.perf_counter()
+                if a.size > 1:
+                    prod = (a * b[:, np.newaxis])
+                else:
+                    prod = a * b
+                end_ = time.perf_counter()
+                if prod.ndim > 1:
+                    grad_elem = np.sum(prod, axis=-1)
+                else:
+                    grad_elem = prod
+                # Reshape back to be able to subtract the wheights in gradient descent directly
+                grad_elem = grad_elem.reshape(b_old_shape)
+
+                print(f"Grad product took calc " + "%.2f" %
+                      ((end_ - start_)*1000.) + "ms")
                 if parent.operation:
                     dfs(parent, grad_elem)
                 else:
+
                     # Set the gradient, terminate search
                     if clear:
                         parent.grad = None
                     else:
-                        if not parent.grad:
+                        if parent.grad is None:
                             parent.grad = 0.
                         parent.grad += grad_elem
                         gradient[parent.name] = grad_elem

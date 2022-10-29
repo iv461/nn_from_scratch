@@ -157,7 +157,8 @@ def test_linear():
     res = l.forward(x_t)
 
     print(f"Result: {res}")
-    res.backward()
+    gradients = res.backward()
+    print(f"Gradients: {gradients}")
     draw_computation_graph(res, 2.)
 
 
@@ -165,23 +166,32 @@ def test_sequential_model():
 
     in_dim = 28*28
     out_dim = 10
+    intemediate_dim = 512
     nn_model = Sequential([
-        Linear(in_dim, 512),
+        Linear(in_dim, intemediate_dim),
         ReLu(),
-        Linear(512, 512),
+        Linear(intemediate_dim, intemediate_dim),
         ReLu(),
-        Linear(512, out_dim)
+        Linear(intemediate_dim, out_dim)
     ])
     nn_params = nn_model.get_parameters()
     print(f"NN params: {nn_params}")
 
     x_t = Tensor(np.arange(in_dim), "x", is_variable=False)
 
+    start_ = time.perf_counter()
     res = nn_model.forward(x_t)
 
+    end_ = time.perf_counter()
+    print(f"Forward took {(end_ - start_) * 1000.}ms")
+
     print(f"Result: {res.value}")
+
+    start_ = time.perf_counter()
     res.backward()
-    #draw_computation_graph(res, 2.)
+    end_ = time.perf_counter()
+    print(f"Backward took {(end_ - start_) * 1000.}ms")
+    draw_computation_graph(res, 2.)
 
 
 if __name__ == "__main__":
