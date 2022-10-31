@@ -198,18 +198,15 @@ class Tensor(Node):
                 b = node.local_grad[parent.id].flatten()
                 start_ = time.perf_counter()
                 if a.size > 1:
-                    prod = (a * b[:, np.newaxis])
+                    grad_elem = np.sum(a, axis=-1) * b
                 else:
-                    prod = a * b
+                    grad_elem = a * b
                 end_ = time.perf_counter()
-                if prod.ndim > 1:
-                    grad_elem = np.sum(prod, axis=-1)
-                else:
-                    grad_elem = prod
+
                 # Reshape back to be able to subtract the wheights in gradient descent directly
                 grad_elem = grad_elem.reshape(b_old_shape)
 
-                print(f"Grad product took calc " + "%.2f" %
+                print(f"Grad product of for d{node.name}/{parent.name} between shape {a.shape} and {b.shape}, calc took " + "%.2f" %
                       ((end_ - start_)*1000.) + "ms")
                 if parent.operation:
                     dfs(parent, grad_elem)
