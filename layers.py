@@ -88,6 +88,8 @@ class Linear(Module):
 
         if out_features == 1:
             wheights_tensor_shape = (in_features,)
+        elif in_features == 1:
+            wheights_tensor_shape = (out_features,)
         else:
             wheights_tensor_shape = (out_features, in_features)
         bias_tensor_shape = out_features
@@ -97,15 +99,6 @@ class Linear(Module):
                                                             k_sqrt, bias_tensor_shape))
 
     def forward(self, x: Tensor):
-        if len(x.value.shape) != 2:
-            raise Exception(
-                f"Input has to be of shape (batch_size, vector_size), got instead a shape of {x.value.shape}")
-
-        input_dim = x.value.shape[1]
-        if input_dim != self.in_features:
-            raise Exception(
-                f"Input shape does not match the number of input features, it is {input_dim} while the number of input features is {self.in_features}")
-
         return self.wheight * x + self.bias
 
 

@@ -74,7 +74,8 @@ class Tensor(Node):
         assert len(self.parents) == 2
 
         op1, op2 = self.parents[0], self.parents[1]
-        both_scalar = op1.value.ndim == 0 and op2.value.ndim == 0
+        both_scalar = (op1.value.ndim == 0 or op1.value.shape == (1, )) and (
+            op2.value.ndim == 0 or op2.value.shape == (1, ))
         both_scalar_or_same_shape = both_scalar or (
             op1.value.shape == op2.value.shape)
 
@@ -90,12 +91,24 @@ class Tensor(Node):
                 self.parents[1].id: -np.ones(op1.value.shape)}
 
         elif self.operation == "*":
-            # only the case for Ax where A \in R^(n x m) and x \in R^m implemented currently
+            # Both scalar, boths vectors of same shape, matrix multiplication (Ax where A \in R^(n x m) and x \in R^m ) or scalar multiplication case
             assert both_scalar_or_same_shape or (
-                op1.value.ndim == 2 and op2.value.ndim == 1 and op1.value.shape[1] == op2.value.shape[0])
-            if both_scalar:
+                op1.value.ndim == 2 and op2.value.ndim == 1 and op1.value.shape[1] == op2.value.shape[0]) or (op1.value.shape == (1,) or op1.value.shape == () or op2.value.shape == (1,) or op2.value.shape == ())
+            if both_scalar_or_same_shape:
+                # scalar and scalar product between vectors case
                 self.local_grad = {op1.id: op2.value, op2.id: op1.value}
-            elif op1.value.ndim == 2 and op2.value.ndim == 1:  # scalar and scalar product between vectors case
+            elif op1.value.shape == (1,) or op1.value.shape == () or op2.value.shape == (1,) or op2.value.shape == ():
+                # Scalar-vector case
+                if op1.value.shape == (1,) or op1.value.shape == ():
+                    c = op1
+                    v = op2
+                else:
+                    c = op2
+                    v = op1
+                d_f_dv = np.broadcast_to(c.value, (len(v.value), ))
+                d_f_dc = v.value
+                self.local_grad = {v.id: d_f_dv, c.id: d_f_dc}
+            elif op1.value.ndim == 2 and op2.value.ndim == 1:
                 # Partial derivative w.r.t to the Matrix is the vector repeated as rows of the matrix
                 d_f_dA = np.broadcast_to(
                     op2.value, (op1.value.shape[0], len(op2.value)))
@@ -181,23 +194,10 @@ class Tensor(Node):
         # TODO vector-valued output, multiply parent with child
 
         def dfs(node: Tensor, accumulated_product=np.array(1.)):
-            start_ = time.perf_counter()
             node.calc_local_gradient()
-            end_ = time.perf_counter()
-            print(f"Local grad took calc " + "%.2f" %
-                  ((end_ - start_)*1000.) + "ms")
             for parent in node.parents:
                 # HINT: We sum over the partial derivatives of a vector-valued intermediate function to obtain the gradient
-                # TODO do with numpy, idk how to broadcast
-                """
-                Same as:
 
-                grad_elem = np.zeros(node.local_grad[parent.id].shape)
-                for acc_i in accumulated_product.flatten():
-                    grad_elem += node.local_grad[parent.id].flatten() * acc_i
-
-                but fast
-                """
                 a = accumulated_product.flatten()
                 b_old_shape = tuple(node.local_grad[parent.id].shape)
                 b = node.local_grad[parent.id].flatten()
@@ -207,12 +207,13 @@ class Tensor(Node):
                 else:
                     grad_elem = a * b
                 end_ = time.perf_counter()
-
                 # Reshape back to be able to subtract the wheights in gradient descent directly
                 grad_elem = grad_elem.reshape(b_old_shape)
 
+                """
                 print(f"Grad product of for d{node.name}/{parent.name} between shape {a.shape} and {b.shape}, calc took " + "%.2f" %
                       ((end_ - start_)*1000.) + "ms")
+                """
                 if parent.operation:
                     dfs(parent, grad_elem)
                 else:
@@ -253,6 +254,7 @@ class Tensor(Node):
                 result.append(operation(x_i, y_i))
         elif not (self.is_batched or other.is_batched):
             result = operation(self.value, other.value)
+            return result
         else:
             if self.is_batched:
                 for x_i in self.value:
@@ -286,12 +288,12 @@ class Tensor(Node):
         if not isinstance(other, Tensor):
             raise Exception(f"Mul with {type(other)} not supported")
         # One is of size batch size, the other of scalar size
-        if self.value.ndim == 0 or other.value.ndim == 0:
+        # TODO for some ops, the array has to be (1, ) as this is the resulting type and for some others, the resulting shape for scalars is ()
+        if self.value.ndim == 0 or other.value.ndim == 0 or self.value.shape == (1, ) or other.value.shape == (1, ):
             result = self.value * other.value
         else:
             # TODO add check for matmul
             result = self.calc_batched(np.matmul, other)
-
         return Tensor(result, None, True, parents=[self, other], op="*")
 
     def __rmul__(self, other):

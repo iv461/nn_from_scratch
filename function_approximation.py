@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 from layers import Linear, ReLu, Sequential, Tensor
-from autograd import Node
+from autograd import Node, draw_computation_graph, square
 from losses import mse_loss
 
 import matplotlib
@@ -33,21 +33,19 @@ class GradientDescent:
         for name, param in self.params.items():
             param.grad = None
 
-    def step(self, gradient):
+    def step(self):
         # TODO get grad from self.params.grad after refactoring
-        def update_params(param, grad):
-            np.subtract(param, grad * self.lr, out=param)
         for name, param in self.params.items():
-            update_params(param, gradient[name])
+            grad = param.grad
+            print(f"Grad for param {name} is {grad}")
+            np.subtract(param.value, grad * self.lr, out=param.value)
 
 
 def train():
 
     interval = [-5, 5.]
-    x_vals = np.linspace(*interval, num=100)
+    x_vals = np.linspace(*interval, num=10)
     y_vals = np.vectorize(f)(x_vals)
-    plt.plot(x_vals, y_vals)
-    plt.xlim(tuple(interval))
 
     intermediate_feat = 5
     model = Sequential([
@@ -57,29 +55,56 @@ def train():
     ])
 
     # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
-    x_train = Tensor(x_vals.reshape(-1, 1), "x",
-                     is_variable=False, is_batched=True)
-    y_train = Tensor(y_vals.reshape(-1, 1), "y_true",
-                     is_variable=False, is_batched=True)
+    x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
+                      is_variable=False) for i, x_i in enumerate(x_vals)]
+    # reshape needed for check in local grad if both are scalar
+    y_train = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
+                      is_variable=False) for i, y_i in enumerate(y_vals)]
 
-    optimizer = GradientDescent(model.get_parameters(), lr=0.01)
+    print(f"x_train: {x_train}, y_train: {y_train}")
+
+    params = model.get_parameters()
+    print(f"Params are: {params}")
+    optimizer = GradientDescent(params, lr=0.001)
     loss = mse_loss
 
     # TODO workaround, fix properly
-    model.forward(x_train)
-    id_count_Tensor_init = Tensor.id_cnt
-    id_count_Node_init = Node.id_cnt
+    id_counts = None
 
-    steps = []
-    for _ in range(1000):
+    def forward_x_train():
+        y_pred = []
+        for x_i, y_true in zip(x_train, y_train):
+            y_pred.append(model.forward(x_i))
+        return y_pred
 
+    plt.plot(x_vals, y_vals)
+    y_pred = forward_x_train()
+    plt.plot(x_vals, [t.value for t in y_pred])
+    plt.title("Before training, function")
+    plt.legend()
+    plt.xlim(tuple(interval))
+    plt.show()
+
+    for i in range(1000):
         # TODO workaround, fix properly
-        Node.id_cnt = id_count_Node_init
-        Tensor.id_cnt = id_count_Tensor_init
+        if id_counts is not None:
+            Node.id_cnt, Tensor.id_cnt = id_counts
 
-        y_pred = model.forward(x_train)
+        loss = None
+        for x_i, y_true in zip(x_train, y_train):
+            y_pred = model.forward(x_i)
+            residual = (y_pred - y_true)
+            residual = square(residual)
+            # Create first a Tensor object
+            if loss is None:
+                loss = residual
+            else:
+                loss += residual
 
-        loss = mse_loss(y_train, y_pred)
+            draw_computation_graph(loss)
+        if id_counts is None:
+            id_counts = (Tensor.id_cnt, Node.id_cnt)
+        #loss = mse_loss(y_train, y_pred)
 
         print(f"Loss is: {loss}")
 
