@@ -258,6 +258,9 @@ class Tensor(Node):
     def __rmul__(self, other):
         return type(self).__mul__(self, other)
 
+    def __str__(self) -> str:
+        return f"{self.value}, grad: {self.grad}"
+        
 
 # common functions
 def _max(op1: Tensor, op2: Union[Tensor, float]):
