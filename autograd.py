@@ -145,15 +145,20 @@ class Tensor(Node):
         Calculates the "local" partial derivatives of this function, 
         for common unary operations like unary sum (including single operand case), mean and square
         """
-        if self.operation == "mean" or self.operation == "sum" or self.operation == "square":
-            op1 = self.parents[0]
-            normalizer = 1. if self.operation == "sum" else (
-                1. / op1.value.size if self.operation == "mean" else 2.)
+        implemented_ops = ["mean", "sum", "square"]
+        if self.operation not in implemented_ops:
+            raise Exception(f"Unary op {self.operation} not implemented")
+
+        op1 = self.parents[0]
+        if self.operation == "square":
+            self.local_grad = {
+                op1.id: 2. * op1.value
+            }
+        else:
+            normalizer = 1. if self.operation == "sum" else 1. / op1.value.size
             self.local_grad = {
                 op1.id: normalizer * np.ones(op1.value.shape)
             }
-        else:
-            raise Exception(f"Unary op {self.operation} not implemented")
 
     def calc_local_gradient(self):
         """
@@ -186,19 +191,21 @@ class Tensor(Node):
             else:
                 raise Exception(f"Op {self.operation} not implemented")
 
-    def backward(self, clear=False):
+    def backward(self):
         """
         Runs backprop, returns dict of the Tensor names as dict
         """
         gradient = {}
         # TODO vector-valued output, multiply parent with child
 
-        def dfs(node: Tensor, accumulated_product=np.array(1.)):
+        def dfs(node: Tensor):
             node.calc_local_gradient()
             for parent in node.parents:
+                # Skip calculation of gradients for nodes
+                if not parent.is_variable:
+                    continue
                 # HINT: We sum over the partial derivatives of a vector-valued intermediate function to obtain the gradient
-
-                a = accumulated_product.flatten()
+                a = node.grad.flatten()
                 b_old_shape = tuple(node.local_grad[parent.id].shape)
                 b = node.local_grad[parent.id].flatten()
                 start_ = time.perf_counter()
@@ -214,19 +221,15 @@ class Tensor(Node):
                 print(f"Grad product of for d{node.name}/{parent.name} between shape {a.shape} and {b.shape}, calc took " + "%.2f" %
                       ((end_ - start_)*1000.) + "ms")
                 """
+                if parent.grad is None:
+                    parent.grad = 0.
+                parent.grad += grad_elem
+                gradient[parent.name] = grad_elem
                 if parent.operation:
-                    dfs(parent, grad_elem)
-                else:
 
-                    # Set the gradient, terminate search
-                    if clear:
-                        parent.grad = None
-                    else:
-                        if parent.grad is None:
-                            parent.grad = 0.
-                        parent.grad += grad_elem
-                        gradient[parent.name] = grad_elem
+                    dfs(parent)
 
+        self.grad = np.array(1.)
         dfs(self)
         return gradient
 
@@ -424,7 +427,7 @@ def draw_node_result_labels(nx_graph, node_positions, size):
     def op_node_label(node: Tensor):
         value_str = "%.2f" % node.value if isinstance(
             node.value, float) else str(node.value)
-        return f"{node.name}={value_str}"
+        return f"{node.name}={value_str}, grad: {node.grad}"
     result_labels = {node: op_node_label(attributes["ag_tensor"])
                      for node, attributes in nx_graph.nodes(data=True)}
 

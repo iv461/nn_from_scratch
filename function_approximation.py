@@ -37,22 +37,26 @@ class GradientDescent:
         # TODO get grad from self.params.grad after refactoring
         for name, param in self.params.items():
             grad = param.grad
-            print(f"Grad for param {name} is {grad}")
+            #print(f"Grad for param {name} is {grad}")
             np.subtract(param.value, grad * self.lr, out=param.value)
 
 
 def train():
 
     interval = [-5, 5.]
-    x_vals = np.linspace(*interval, num=10)
+    x_vals = np.linspace(*interval, num=20)
     y_vals = np.vectorize(f)(x_vals)
 
-    intermediate_feat = 5
-    model = Sequential([
+    intermediate_feat = 2
+    seq_model = Sequential([
         Linear(in_features=1, out_features=intermediate_feat),
         ReLu(),
         Linear(in_features=intermediate_feat, out_features=1)
     ])
+
+    linear_model = Linear(in_features=1, out_features=1)
+    lin_relu = Sequential([Linear(in_features=1, out_features=1), ReLu()])
+    model = seq_model
 
     # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
     x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
@@ -65,7 +69,7 @@ def train():
 
     params = model.get_parameters()
     print(f"Params are: {params}")
-    optimizer = GradientDescent(params, lr=0.001)
+    optimizer = GradientDescent(params, lr=0.0004)
     loss = mse_loss
 
     # TODO workaround, fix properly
@@ -73,19 +77,30 @@ def train():
 
     def forward_x_train():
         y_pred = []
-        for x_i, y_true in zip(x_train, y_train):
+        for x_i in x_train:
             y_pred.append(model.forward(x_i))
         return y_pred
 
-    plt.plot(x_vals, y_vals)
-    y_pred = forward_x_train()
-    plt.plot(x_vals, [t.value for t in y_pred])
-    plt.title("Before training, function")
-    plt.legend()
-    plt.xlim(tuple(interval))
-    plt.show()
+    def plot_model_vs_function():
+        plt.plot(x_vals, y_vals)
+        y_pred = forward_x_train()
+        y_scalars = [t.value for t in y_pred]
+        plt.plot(x_vals, y_scalars)
+        plt.title("Function vs model")
+        plt.legend()
+        plt.xlim(tuple(interval))
+        plt.show()
 
-    for i in range(1000):
+    def print_parameters():
+        for param_id, param in params.items():
+            print(f"Param {param.name}({param_id}) is: {param.value}")
+
+    plot_model_vs_function()
+
+    last_loss = None
+
+    loss_vals = []
+    for i in range(10000):
         # TODO workaround, fix properly
         if id_counts is not None:
             Node.id_cnt, Tensor.id_cnt = id_counts
@@ -101,22 +116,37 @@ def train():
             else:
                 loss += residual
 
-            draw_computation_graph(loss)
+            """ optimizer.zero_grad()
+            loss.backward()
+            draw_computation_graph(loss) """
+
         if id_counts is None:
             id_counts = (Tensor.id_cnt, Node.id_cnt)
         #loss = mse_loss(y_train, y_pred)
 
-        print(f"Loss is: {loss}")
+        if (i % 1000) == 0:
+            print(f"Iteration #{i} Loss is: {loss}")
+
+        if last_loss is not None:
+            if np.abs(last_loss-loss.value) < 0.0001:
+                break
+
+        last_loss = loss.value
+        loss_vals.append(last_loss)
 
         optimizer.zero_grad()
-
         loss.backward()
         optimizer.step()
 
-    plt.plot(x_vals, y_vals)
-    y_pred = model.forward(x_vals)
-    plt.plot(x_vals, y_pred)
-    plt.xlim(tuple(interval))
+        # print_parameters()
+
+        # plot_model_vs_function()
+
+    plot_model_vs_function()
+
+    plt.plot(np.arange(len(loss_vals)), loss_vals)
+    plt.title("Loss")
+    plt.show()
 
 
 train()
