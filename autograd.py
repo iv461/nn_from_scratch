@@ -30,7 +30,7 @@ class Node:
 class Tensor(Node):
     cnt = 0
 
-    def __init__(self, value: np.ndarray, name: Union[str, None], is_variable=True, parents=None, op=None) -> None:
+    def __init__(self, value: np.ndarray, name: Union[str, None], is_variable=True, parents=None, op=None, is_batched=None) -> None:
         if not name:
             # TODO fix
             prefix = "f" if is_variable else "c"
@@ -44,7 +44,7 @@ class Tensor(Node):
           in this case it is calculated and stored during the forward pass
         """
         self.value = value
-        # The gradient vecto
+        # The gradient vector
         self.grad = None
         # String expression of the gradient, for debug
         self.grad_exp = None
@@ -56,6 +56,16 @@ class Tensor(Node):
         # and the local partial derivatives to these parent nodes.
         # It can be calculated when the operation and the number of operands including their dimensions is known.
         self.local_grad = None
+        # To not have to pass the is_batched flag to every tensor, we check if the value is_batched was passed, if not we determine
+        # if this tensor is batched from its parents. Batched tensors always have to be of shape (batch_size, sample_size, ...)
+        if is_batched is None:
+            if parents is not None:
+                self.is_batched = any(
+                    [parent.is_batched for parent in parents])
+            else:
+                self.is_batched = False
+        else:
+            self.is_batched = is_batched
 
     def calc_local_grad_binary_ops(self):
         """
@@ -104,21 +114,16 @@ class Tensor(Node):
                 op2.id: (-op1.value / op2.value ** 2)}
         elif self.operation == "max":
             assert both_scalar_or_same_shape
-            if both_scalar:
-                self.local_grad = {
-                    op1.id: float(op1.value > op2.value),
-                    op2.id: float(op2.value > op1.value)}
-            else:
-                """
-                 Does element-wise comparison with numpy,
-                 if True, then it is converted to 1., otherwise zero.
-                 The partial derivatives of the max(a, b)
-                  are for a 1 whem a is larger than b, otherwise 0 and vice-versa for b.
-                """
-                self.local_grad = {
-                    op1.id: (op1.value > op2.value).astype(float),
-                    op2.id: (op2.value > op1.value).astype(float)
-                }
+            """
+                Does element-wise comparison with numpy,
+                if True, then it is converted to 1., otherwise to 0. .
+                The partial derivatives of the max(a, b)
+                are 1. for a when a is larger than b, otherwise 0 and vice-versa for b.
+            """
+            self.local_grad = {
+                op1.id: (op1.value > op2.value).astype(float),
+                op2.id: (op2.value > op1.value).astype(float)
+            }
         else:
             raise Exception(f"Binary op {self.operation} not implemented")
 
@@ -224,23 +229,54 @@ class Tensor(Node):
         dfs(self)
         return gradient
 
-    def reset_gradient(self):
-        self.backward(clear=True)
+    def op_checks_vector(self, other_operand):
+        if not isinstance(other_operand, Tensor):
+            raise Exception(
+                f"Operation with {other_operand} of type {type(other_operand)} not supported")
+        return
+        # Determine which is operand is a vector of training examples, i.e. the batch
+        # Now check if both shapes are compatible for element-wise operation
+        if len(self.value.shape) > len(other_operand.value.shape):
+            shapes_compat = self.value.shape[1:] == other_operand.value.shape
+        elif len(self.value.shape) == len(other_operand.value.shape):
+            shapes_compat = self.value.shape == other_operand.value.shape
+        else:
+            shapes_compat = self.value.shape == other_operand.value.shape[1:]
+        if not shapes_compat:
+            raise Exception(
+                f"Operation with {other_operand} of with shapes {self.value.shape} and {other_operand.value.shape} not supported")
+
+    def calc_batched(self, operation, other):
+        result = []
+        if self.is_batched and other.is_batched:
+            for x_i, y_i in zip(self.value, other.value):
+                result.append(operation(x_i, y_i))
+        elif not (self.is_batched or other.is_batched):
+            result = operation(self.value, other.value)
+        else:
+            if self.is_batched:
+                for x_i in self.value:
+                    result.append(operation(x_i, other.value))
+            else:
+                for x_i in other.value:
+                    result.append(operation(self.value, x_i))
+
+        result = np.array(result)
+        return result
 
     def __add__(self, other):
-        if not isinstance(other, Tensor):
-            raise Exception(
-                f"Add with {other} of type {type(other)} not supported")
-        assert other.value.shape == self.value.shape
+        """
+        Works also over batch size because of automatic broadcasting of numpy, 
+        e.g. addition works with x = np.ones((2, 3)) and w = np.arange(3).
+        """
+        self.op_checks_vector(other)
         return Tensor(self.value + other.value, None, True, parents=[self, other], op="+")
 
     def __radd__(self, other):
         return type(self).__add__(self, other)
 
     def __sub__(self, other):
-        if not isinstance(other, Tensor):
-            raise Exception(f"Sub with {type(other)} not supported")
-        assert other.value.shape == self.value.shape
+        self.op_checks_vector(other)
         return Tensor(self.value - other.value, None, True, parents=[self, other], op="-")
 
     def __rsub__(self, other):
@@ -249,10 +285,13 @@ class Tensor(Node):
     def __mul__(self, other):
         if not isinstance(other, Tensor):
             raise Exception(f"Mul with {type(other)} not supported")
-        if self.value.ndim == 0 and other.value.ndim == 0:
+        # One is of size batch size, the other of scalar size
+        if self.value.ndim == 0 or other.value.ndim == 0:
             result = self.value * other.value
         else:
-            result = np.matmul(self.value, other.value)
+            # TODO add check for matmul
+            result = self.calc_batched(np.matmul, other)
+
         return Tensor(result, None, True, parents=[self, other], op="*")
 
     def __rmul__(self, other):
@@ -260,7 +299,7 @@ class Tensor(Node):
 
     def __str__(self) -> str:
         return f"{self.value}, grad: {self.grad}"
-        
+
 
 # common functions
 def _max(op1: Tensor, op2: Union[Tensor, float]):

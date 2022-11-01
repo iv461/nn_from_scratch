@@ -26,6 +26,13 @@ class GradientDescent:
         self.params = params
         self.lr = lr
 
+    def zero_grad(self):
+        """
+        Clear parameter gradients 
+        """
+        for name, param in self.params.items():
+            param.grad = None
+
     def step(self, gradient):
         # TODO get grad from self.params.grad after refactoring
         def update_params(param, grad):
@@ -49,10 +56,13 @@ def train():
         Linear(in_features=intermediate_feat, out_features=1)
     ])
 
-    x_train = Tensor(x_vals, "x", is_variable=False)
-    y_train = Tensor(y_vals, "y_true", is_variable=False)
+    # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
+    x_train = Tensor(x_vals.reshape(-1, 1), "x",
+                     is_variable=False, is_batched=True)
+    y_train = Tensor(y_vals.reshape(-1, 1), "y_true",
+                     is_variable=False, is_batched=True)
 
-    opt = GradientDescent(model.get_parameters(), lr=0.01)
+    optimizer = GradientDescent(model.get_parameters(), lr=0.01)
     loss = mse_loss
 
     # TODO workaround, fix properly
@@ -73,8 +83,10 @@ def train():
 
         print(f"Loss is: {loss}")
 
+        optimizer.zero_grad()
+
         loss.backward()
-        opt.step()
+        optimizer.step()
 
     plt.plot(x_vals, y_vals)
     y_pred = model.forward(x_vals)
