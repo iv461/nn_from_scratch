@@ -145,7 +145,7 @@ class Tensor(Node):
         Calculates the "local" partial derivatives of this function, 
         for common unary operations like unary sum (including single operand case), mean and square
         """
-        implemented_ops = ["mean", "sum", "square"]
+        implemented_ops = ["mean", "sum", "square", "tanh"]
         if self.operation not in implemented_ops:
             raise Exception(f"Unary op {self.operation} not implemented")
 
@@ -154,7 +154,12 @@ class Tensor(Node):
             self.local_grad = {
                 op1.id: 2. * op1.value
             }
-        else:
+        elif self.operation == "tanh":
+            dx = np.ones(op1.value.shape) - np.square(np.tanh(op1.value))
+            self.local_grad = {
+                op1.id: dx
+            }
+        elif self.operation == "mean" or self.operation == "sum":
             normalizer = 1. if self.operation == "sum" else 1. / op1.value.size
             self.local_grad = {
                 op1.id: normalizer * np.ones(op1.value.shape)
@@ -342,6 +347,10 @@ def sum(op1: Tensor):
 
 def square(op1: Tensor):
     return Tensor(np.square(op1.value), None, True, [op1], "square")
+
+
+def tanh(op1: Tensor):
+    return Tensor(np.tanh(op1.value), None, True, [op1], "tanh")
 
 
 def build_networkx_graph(root_node: Tensor):

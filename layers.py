@@ -111,6 +111,15 @@ class ReLu(Module):
         return autograd.max(x, 0.)
 
 
+class Tanh(Module):
+
+    def __init__(self):
+        super().__init__("Tanh")
+
+    def forward(self, x: Tensor):
+        return autograd.tanh(x)
+
+
 class Sequential(Module):
 
     def __init__(self, layers: list):
