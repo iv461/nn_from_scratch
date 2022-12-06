@@ -49,7 +49,7 @@ class NeuralNetwork(nn.Module):
         super(NeuralNetwork, self).__init__()
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(1, intermediate_layers),
-            nn.Tanh(),
+            nn.Sigmoid(),
             nn.Linear(intermediate_layers, 1)
         )
 
