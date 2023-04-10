@@ -41,11 +41,19 @@ class GradientDescent(Optimizer):
         super().__init__(params)
         self.lr = lr
 
-    def step(self):
+    def step(self, trace=False):
         for name, param in self.params.items():
             grad = param.grad
+            grad_clip_val = 20000
+            # cannot use out= as return arrays must be of ArrayType
+            grad = np.clip(grad, a_min=-grad_clip_val, a_max=grad_clip_val)
+            if trace:
+                print(f"[Optimizer] Grad is:\n{grad}")
+                print(f"[Optimizer] Old Parameters are:\n{param.value}")
             #print(f"Grad for param {name} is {grad}")
             np.subtract(param.value, grad * self.lr, out=param.value)
+            if trace:
+                print(f"[Optimizer] New Parameters are:\n{param.value}")
 
 
 class Momentum(Optimizer):
@@ -76,7 +84,7 @@ def train():
 
     interval = [-6, 4.5]
 
-    batch_size = 20
+    batch_size = 5
     sample_size = 5 * batch_size
     x_vals_orig = np.linspace(*interval, num=sample_size)
 
@@ -101,8 +109,9 @@ def train():
     #print(f"x_train: {x_train}, y_train: {y_train}")
 
     params = model.get_parameters()
-    print(f"Params are: {params}")
-    optimizer = GradientDescent(params, lr=0.001)
+    params_str = ', '.join(map(str, params.values()))
+    print(f"Params are:\n{params_str}")
+    optimizer = GradientDescent(params, lr=1e-6)
     loss = mse_loss
 
     # TODO workaround, fix properly
@@ -185,12 +194,12 @@ def train():
 
             optimizer.zero_grad()
             loss.backward()
-            optimizer.step()
+            optimizer.step(trace=False)
 
             # print_parameters()
 
-        optimizer.lr *= lr_decay
-        if (epoch_i % 200) == 0:
+        #optimizer.lr *= lr_decay
+        if (epoch_i % 10) == 0:
             plot_model_vs_function(x_orig_t, y_orig_t)
 
     plot_model_vs_function(x_orig_t, y_orig_t)

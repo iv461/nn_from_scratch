@@ -17,6 +17,9 @@ class Parameter(Tensor):
     def __init__(self, name, value: np.ndarray) -> None:
         super().__init__(value, name)
 
+    def __str__(self) -> str:
+        return super().__str__()
+
 
 class Module:
 
