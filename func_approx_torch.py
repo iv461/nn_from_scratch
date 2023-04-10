@@ -77,7 +77,7 @@ def plot_model_vs_function(model, x_t: Tensor, y_t: Tensor, x_lim):
     plt.show()
 
 
-def train_loop(dataloader, model, loss_fn, optimizer):
+def train_loop(dataloader, model, loss_fn, optimizer, trace=False):
     losses = []
     for batch_i, batch in enumerate(dataloader):
 
@@ -87,13 +87,30 @@ def train_loop(dataloader, model, loss_fn, optimizer):
 
         X, y = batch
         # Compute prediction and loss
+
+        if trace:
+            print(f"Params before update:\n")
+            for name, param in model.named_parameters():
+                print(f"Param {name}: {param}")
+
         pred = model(X)
         loss = loss_fn(pred, y)
 
         # Backpropagation
         optimizer.zero_grad()
         loss.backward()
+
+        if trace:
+            print(f"Grad after grad calc:\n")
+            for name, param in model.named_parameters():
+                print(f"Grad:{param.grad}")
+
         optimizer.step()
+
+        if trace:
+            print(f"Params after update:\n")
+            for name, param in model.named_parameters():
+                print(f"Param {name}: {param}")
 
         losses.append(loss.item())
     return losses
@@ -101,20 +118,23 @@ def train_loop(dataloader, model, loss_fn, optimizer):
 
 def train():
 
-    interval = [-6, 5.]
+    interval = [-6, 4.5]
 
     intermediate_feat = 20
     model = NeuralNetwork(intermediate_layers=intermediate_feat)
 
-    dataset = FunctionApproximationDataset(f, interval, sample_size=100)
+    batch_size = 20
+    sample_size = 5 * batch_size
+    dataset = FunctionApproximationDataset(
+        f, interval, sample_size=sample_size)
 
-    dataloader = DataLoader(dataset, batch_size=20,
+    dataloader = DataLoader(dataset, batch_size=batch_size,
                             shuffle=True, num_workers=0)
 
     params = model.parameters()
 
     #optimizer = Adam(params, lr=.01)
-    optimizer = SGD(params, lr=.005, momentum=.1)
+    optimizer = SGD(params, lr=1e-3)
     mse_loss = nn.MSELoss()
 
     # Move to cuda
@@ -125,14 +145,13 @@ def train():
     #plot_model_vs_function(model, dataset.x_vals, dataset.y_vals, interval)
 
     loss_vals = []
-    epochs = 1000
+    epochs = 2000
     for epoch_i in range(epochs):
         loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
 
-        if (epoch_i % 1000) == 0:
-            print(f"Params are: ")
-            for param in list(params):
-                print(f"Param: {param}")
+        print(f"Epoch #{epoch_i} loss is: {loss_vals[-1]}")
+        if (epoch_i % 100) == 0:
+
             plot_model_vs_function(model, dataset.x_vals,
                                    dataset.y_vals, interval)
 

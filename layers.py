@@ -18,7 +18,7 @@ class Parameter(Tensor):
         super().__init__(value, name)
 
     def __str__(self) -> str:
-        return super().__str__()
+        return f"Param {self.name}: {super().__str__()}"
 
 
 class Module:

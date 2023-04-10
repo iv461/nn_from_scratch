@@ -175,7 +175,7 @@ class Tensor(Node):
         elif len(self.parents) == 2:
             self.calc_local_grad_binary_ops()
 
-    def backward(self):
+    def backward(self, trace=False, profile=False):
         """
         Runs backprop, returns dict of the Tensor names as dict
         """
@@ -185,26 +185,34 @@ class Tensor(Node):
         def dfs(node: Tensor):
             node.calc_local_gradient()
             for parent in node.parents:
-                # Skip calculation of gradients for nodes
+                # Skip calculation of gradients for nodes for which we should not calculate the gradient
                 if not parent.is_variable:
                     continue
-                # HINT: We sum over the partial derivatives of a vector-valued intermediate function to obtain the gradient
+
                 a = node.grad.flatten()
                 b_old_shape = tuple(node.local_grad[parent.id].shape)
                 b = node.local_grad[parent.id].flatten()
                 start_ = time.perf_counter()
-                if a.size > 1:
-                    grad_elem = np.sum(a, axis=-1) * b
-                else:
-                    grad_elem = a * b
+                # HINT: We sum over the partial derivatives of a vector-valued intermediate function to obtain the gradient
+                # TODO whyy ?? I think if we have a rank > 1 of the tensor was meant here. I commented it out as it triggers
+                # for rank 1 tensor as size is then 20
+                # if a.size > 1:
+                #    grad_elem = np.sum(a, axis=-1) * b
+                # else:
+                grad_elem = a * b
                 end_ = time.perf_counter()
-                # Reshape back to be able to subtract the wheights in gradient descent directly
+                # Reshape back to be able to subtract the weights in gradient descent directly
                 grad_elem = grad_elem.reshape(b_old_shape)
 
-                """
-                print(f"Grad product of for d{node.name}/{parent.name} between shape {a.shape} and {b.shape}, calc took " + "%.2f" %
-                      ((end_ - start_)*1000.) + "ms")
-                """
+                if trace:
+
+                    print(
+                        f"Grad product of for d{node.name}/{parent.name} is:\n{grad_elem}")
+
+                if profile:
+                    print(f"Grad calc between shape {a.shape} and {b.shape}, calc took " + "%.2f" % (
+                        (end_ - start_)*1000.) + "ms")
+
                 if parent.grad is None:
                     parent.grad = 0.
                 parent.grad += grad_elem
@@ -352,6 +360,11 @@ def build_networkx_graph(root_node: Tensor):
 
 
 def draw_computation_graph(root_tensor: Tensor, size=1.):
+    """
+    Draw the computation graph for a given root tensor
+    Opens the window
+    """
+
     nx_graph = build_networkx_graph(root_tensor)
 
     def node_type_to_color(node: Tensor):

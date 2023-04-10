@@ -84,7 +84,7 @@ def train():
 
     interval = [-6, 4.5]
 
-    batch_size = 5
+    batch_size = 20
     sample_size = 5 * batch_size
     x_vals_orig = np.linspace(*interval, num=sample_size)
 
@@ -111,7 +111,7 @@ def train():
     params = model.get_parameters()
     params_str = ', '.join(map(str, params.values()))
     print(f"Params are:\n{params_str}")
-    optimizer = GradientDescent(params, lr=1e-6)
+    optimizer = GradientDescent(params, lr=1e-3)
     loss = mse_loss
 
     # TODO workaround, fix properly
@@ -174,9 +174,9 @@ def train():
                 else:
                     loss += residual
 
-                """ optimizer.zero_grad()
-                loss.backward()
-                draw_computation_graph(loss) """
+            # normalize loss
+            # 72.
+            loss = loss * Tensor(np.array(1./batch_size), None, False, None)
 
             if id_counts is None:
                 id_counts = (Tensor.id_cnt, Node.id_cnt)
@@ -194,12 +194,13 @@ def train():
 
             optimizer.zero_grad()
             loss.backward()
+            # draw_computation_graph(loss)
             optimizer.step(trace=False)
 
             # print_parameters()
 
         #optimizer.lr *= lr_decay
-        if (epoch_i % 10) == 0:
+        if (epoch_i % 100) == 0:
             plot_model_vs_function(x_orig_t, y_orig_t)
 
     plot_model_vs_function(x_orig_t, y_orig_t)
