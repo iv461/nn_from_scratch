@@ -62,7 +62,7 @@ class Perceptron(Module):
 
         self.bias = Tensor(np.array(init_vals[-1]), name="b")
 
-    def forward(self, x: list[Tensor]):
+    def forward(self, x):
         assert len(x) == self.in_features
         dot_prod = x[0] * self.wheight[0]
         for i, (x_i, w_i) in enumerate(zip(x, self.wheight)):

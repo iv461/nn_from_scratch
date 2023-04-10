@@ -3,7 +3,7 @@ import numpy as np
 from torch import nn, from_numpy as t_from_from_numpy
 from torch import Tensor
 from torch.utils.data import Dataset, DataLoader
-from torch.optim import SGD
+from torch.optim import SGD, Adam
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -49,7 +49,7 @@ class NeuralNetwork(nn.Module):
         super(NeuralNetwork, self).__init__()
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(1, intermediate_layers),
-            nn.Sigmoid(),
+            nn.ReLU(),
             nn.Linear(intermediate_layers, 1)
         )
 
@@ -103,7 +103,7 @@ def train():
 
     interval = [-6, 5.]
 
-    intermediate_feat = 10
+    intermediate_feat = 20
     model = NeuralNetwork(intermediate_layers=intermediate_feat)
 
     dataset = FunctionApproximationDataset(f, interval, sample_size=100)
@@ -113,7 +113,8 @@ def train():
 
     params = model.parameters()
 
-    optimizer = SGD(params, lr=.00007, momentum=0.5, dampening=.5)
+    #optimizer = Adam(params, lr=.01)
+    optimizer = SGD(params, lr=.005, momentum=.1)
     mse_loss = nn.MSELoss()
 
     # Move to cuda
@@ -124,7 +125,7 @@ def train():
     #plot_model_vs_function(model, dataset.x_vals, dataset.y_vals, interval)
 
     loss_vals = []
-    epochs = 5000
+    epochs = 1000
     for epoch_i in range(epochs):
         loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
 

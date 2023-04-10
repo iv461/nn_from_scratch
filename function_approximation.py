@@ -1,5 +1,7 @@
 import numpy as np
 import math
+from typing import List
+
 
 from layers import Linear, ReLu, Sequential, Tensor, Tanh
 from autograd import Node, draw_computation_graph, square
@@ -74,8 +76,8 @@ def train():
 
     interval = [-6, 4.5]
 
-    batch_size = 10
-    sample_size = 30 * batch_size
+    batch_size = 20
+    sample_size = 5 * batch_size
     x_vals_orig = np.linspace(*interval, num=sample_size)
 
     random_gen = np.random.default_rng(seed=123456)
@@ -85,10 +87,10 @@ def train():
     y_vals_orig = f_v(x_vals_orig)
     y_vals = f_v(x_vals)
 
-    intermediate_feat = 6
+    intermediate_feat = 20
     seq_model = Sequential([
         Linear(in_features=1, out_features=intermediate_feat),
-        Tanh(),
+        ReLu(),
         Linear(in_features=intermediate_feat, out_features=1),
     ])
 
@@ -112,7 +114,7 @@ def train():
             y_pred.append(model.forward(x_i))
         return y_pred
 
-    def plot_model_vs_function(x_t: list[Tensor], y_t: list[Tensor]):
+    def plot_model_vs_function(x_t: List[Tensor], y_t: List[Tensor]):
         x_scalars = [float(t.value) for t in x_t]
         y_scalars = [float(t.value) for t in y_t]
         plt.plot(x_scalars, y_scalars)
@@ -139,7 +141,7 @@ def train():
                        is_variable=False) for i, y_i in enumerate(y_vals_orig)]
 
     plot_model_vs_function(x_orig_t, y_orig_t)
-    lr_decay = .99
+    lr_decay = 1.
     for epoch_i in range(2000):
         for batch_i in range(sample_size // batch_size):
             # TODO workaround, fix properly
@@ -198,4 +200,5 @@ def train():
     plt.show()
 
 
+np.seterr(all="raise")
 train()

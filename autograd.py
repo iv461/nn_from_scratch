@@ -1,6 +1,6 @@
 import time
 import numpy as np
-import math
+
 
 from typing import Union
 
@@ -174,27 +174,6 @@ class Tensor(Node):
             self.calc_local_grad_unary_ops()
         elif len(self.parents) == 2:
             self.calc_local_grad_binary_ops()
-
-        if False:
-            if self.operation == "+":
-                self.grad_exp = {
-                    op1.id: f"1",
-                    op2.id: f"1"}
-            elif self.operation == "-":
-                self.grad_exp = {
-                    op1.id: f"1",
-                    op2.id: f"-1"}
-            elif self.operation == "*":
-                # TODO special, binary case
-                self.grad_exp = {
-                    op1.id: f"{op2.name}",
-                    op2.id: f"{op1.name}"}
-            elif self.operation == "/":
-                self.grad_exp = {
-                    op1.id: f"(1. / {op2.name})",
-                    op2.id: f"({-op1.name} / {op2.name} ** 2)"}
-            else:
-                raise Exception(f"Op {self.operation} not implemented")
 
     def backward(self):
         """
