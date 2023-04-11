@@ -95,9 +95,11 @@ def train():
     y_vals_orig = f_v(x_vals_orig)
     y_vals = f_v(x_vals)
 
-    intermediate_feat = 20
+    intermediate_feat = 10
     seq_model = Sequential([
         Linear(in_features=1, out_features=intermediate_feat),
+        ReLu(),
+        Linear(in_features=intermediate_feat, out_features=intermediate_feat),
         ReLu(),
         Linear(in_features=intermediate_feat, out_features=1),
     ])
@@ -180,7 +182,6 @@ def train():
 
             if id_counts is None:
                 id_counts = (Tensor.id_cnt, Node.id_cnt)
-            #loss = mse_loss(y_train, y_pred)
 
             if (batch_i % 50) == 0:
                 print(f"Batch #{batch_i}, epoch #{epoch_i} loss is: {loss}")
@@ -196,11 +197,12 @@ def train():
             loss.backward()
             # draw_computation_graph(loss)
             optimizer.step(trace=False)
+            # input()
 
             # print_parameters()
 
         #optimizer.lr *= lr_decay
-        if (epoch_i % 100) == 0:
+        if (epoch_i % 500) == 0:
             plot_model_vs_function(x_orig_t, y_orig_t)
 
     plot_model_vs_function(x_orig_t, y_orig_t)

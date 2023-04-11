@@ -42,6 +42,10 @@ Also better visualization, documentation and more examples are appreciated. Keep
 - Pytorch Docs
 - https://karpathy.medium.com/yes-you-should-understand-backprop-e2f06eab496b
 
+# License 
+
+MIT 
+
 # Similar projects 
 
 - [tinygrad](https://github.com/geohot/tinygrad)

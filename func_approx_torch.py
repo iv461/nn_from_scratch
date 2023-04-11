@@ -2,6 +2,7 @@ import numpy as np
 
 from torch import nn, from_numpy as t_from_from_numpy
 from torch import Tensor
+from torch import functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import SGD, Adam
 
@@ -120,7 +121,7 @@ def train():
 
     interval = [-6, 4.5]
 
-    intermediate_feat = 20
+    intermediate_feat = 100
     model = NeuralNetwork(intermediate_layers=intermediate_feat)
 
     batch_size = 20
@@ -150,7 +151,7 @@ def train():
         loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
 
         print(f"Epoch #{epoch_i} loss is: {loss_vals[-1]}")
-        if (epoch_i % 100) == 0:
+        if (epoch_i % 1000) == 0:
 
             plot_model_vs_function(model, dataset.x_vals,
                                    dataset.y_vals, interval)
