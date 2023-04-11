@@ -24,6 +24,7 @@ b.backward()
 
 print(f"Torch A grad: {A_t.grad}")
 print(f"Torch x grad: {x_t.grad}")
+print(f"Torch x grad: {m_t.grad}")
 
 A_t2 = autograd.Tensor(A, "A")
 x_t2 = autograd.Tensor(x, "x")
@@ -35,3 +36,4 @@ b2.backward()
 
 print(f"AG A grad: {A_t2.grad}")
 print(f"AG x grad: {x_t2.grad}")
+print(f"AG m grad: {m_t2.grad}")

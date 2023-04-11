@@ -202,7 +202,7 @@ def train():
             # print_parameters()
 
         #optimizer.lr *= lr_decay
-        if (epoch_i % 500) == 0:
+        if (epoch_i % 300) == 0:
             plot_model_vs_function(x_orig_t, y_orig_t)
 
     plot_model_vs_function(x_orig_t, y_orig_t)

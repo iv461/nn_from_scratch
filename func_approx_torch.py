@@ -50,7 +50,9 @@ class NeuralNetwork(nn.Module):
         super(NeuralNetwork, self).__init__()
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(1, intermediate_layers),
-            nn.ReLU(),
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Linear(intermediate_layers, intermediate_layers),
+            nn.LeakyReLU(negative_slope=0.01),
             nn.Linear(intermediate_layers, 1)
         )
 
