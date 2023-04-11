@@ -116,16 +116,21 @@ class Tensor(Node):
                 # Partial derivative w.r.t to the Matrix is the vector repeated as rows of the matrix
                 A = op1.value
                 x = op2.value
-                d_f_dA = np.broadcast_to(x, (A.shape[0], len(x)))
-                # TODO correct ?
-                d_f_dx = np.sum(A, axis=-1)
+                # First, broadcast the vector row-wise to create a matrix.
+                x_broadcasted =np.broadcast_to(x, (A.shape[0], len(x)))
+                # Then broadcast the vector over the columns and multiply element-wise
+                d_f_dA = x_broadcasted * grad_tensor[:, np.newaxis]
+                # Multiply every column with the same vec element wise
+                A_mult = A * grad_tensor[:, np.newaxis]
+                # Then sum all rows
+                d_f_dx = np.sum(A_mult.T, axis=-1)
+
                 self.local_grad = {
-                    self.parents[0].id: d_f_dA,
-                    self.parents[1].id: d_f_dx}
-                # multiply two vectors of the same shape element-wise
-                return {self.parents[0].id: d_f_dx * grad_tensor,
-                        # broadcast the vector over the columns and multiply element-wise
-                        self.parents[1].id: d_f_dA * grad_tensor[:, np.newaxis]}
+                    self.parents[0].id: x,
+                    self.parents[1].id: A}
+
+                return {op1.id: d_f_dA,
+                        op2.id: d_f_dx}
             else:
                 raise Exception("Invalid multiplication")
 
