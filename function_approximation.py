@@ -95,13 +95,15 @@ def train():
     y_vals_orig = f_v(x_vals_orig)
     y_vals = f_v(x_vals)
 
-    intermediate_feat = 10
+    intermediate_feat = 20
     seq_model = Sequential([
         Linear(in_features=1, out_features=intermediate_feat),
         ReLu(),
         Linear(in_features=intermediate_feat, out_features=intermediate_feat),
         ReLu(),
-        Linear(in_features=intermediate_feat, out_features=1),
+        Linear(in_features=intermediate_feat, out_features=5),
+        ReLu(),
+        Linear(in_features=5, out_features=1),
     ])
 
     linear_model = Linear(in_features=1, out_features=1)

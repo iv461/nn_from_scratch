@@ -77,7 +77,7 @@ class Perceptron(Module):
 
 class Linear(Module):
     """
-    Linear (also called Dense) layer, calculates xA^T + b
+    Linear (also called Dense) layer, calculates wx + b
     """
 
     def __init__(self, in_features: Union[tuple, int], out_features: Union[tuple, int]):
@@ -89,20 +89,15 @@ class Linear(Module):
         k = 1. / in_features
         k_sqrt = math.sqrt(k)
 
-        if out_features == 1:
-            wheights_tensor_shape = (in_features,)
-        elif in_features == 1:
-            wheights_tensor_shape = (out_features,)
-        else:
-            wheights_tensor_shape = (out_features, in_features)
-        bias_tensor_shape = out_features
+        wheights_tensor_shape = (out_features, in_features)
+        
         self.wheight = Parameter("w", self.uniform_initializer(
             -k_sqrt, k_sqrt, wheights_tensor_shape))
         self.bias = Parameter("b", self.uniform_initializer(-k_sqrt,
-                                                            k_sqrt, bias_tensor_shape))
+                                                            k_sqrt, out_features))
 
     def forward(self, x: Tensor):
-        return self.wheight * x + self.bias
+        return self.wheight @ x + self.bias
 
 
 class ReLu(Module):

@@ -111,13 +111,17 @@ class Tensor(Node):
                 d_f_dv = np.broadcast_to(c.value, (len(v.value), ))
                 d_f_dc = v.value
                 self.local_grad = {v.id: d_f_dv, c.id: d_f_dc}
-            elif op1.value.ndim == 2 and op2.value.ndim == 1:
+
+            else:
+                raise Exception("Invalid multiplication")
+        elif self.operation == "@":
+            if op1.value.ndim == 2 and op2.value.ndim == 1:
                 # Matrix-vector case, Ax, op1 is A and op2 is x
                 # Partial derivative w.r.t to the Matrix is the vector repeated as rows of the matrix
                 A = op1.value
                 x = op2.value
                 # First, broadcast the vector row-wise to create a matrix.
-                x_broadcasted =np.broadcast_to(x, (A.shape[0], len(x)))
+                x_broadcasted = np.broadcast_to(x, (A.shape[0], len(x)))
                 # Then broadcast the vector over the columns and multiply element-wise
                 d_f_dA = x_broadcasted * grad_tensor[:, np.newaxis]
                 # Multiply every column with the same vec element wise
@@ -131,8 +135,27 @@ class Tensor(Node):
 
                 return {op1.id: d_f_dA,
                         op2.id: d_f_dx}
-            else:
-                raise Exception("Invalid multiplication")
+            elif op1.value.ndim == 2 and op2.value.ndim == 2:
+                # matrix-matrix case
+                M = grad_tensor
+                A = op1.value
+                B = op2.value
+                # Derivation of the following lines is three A4 pages incl. visualization
+                B_exp = B[np.newaxis, :]
+                M_exp = M[:, np.newaxis, :]
+                R = B_exp * M_exp
+                df_dA = np.sum(R, axis=2)
+                A_exp = A[np.newaxis, :]
+                M_exp2 = M.T[:, :, np.newaxis]
+                R2 = A_exp * M_exp2
+                df_dB = np.sum(R2, axis=1)
+                df_dB = df_dB.T
+                self.local_grad = {
+                    op1.id: B,
+                    op2.id: A}
+
+                return {op1.id: df_dA,
+                        op2.id: df_dB}
 
         elif self.operation == "/":
             assert both_scalar_or_same_shape
@@ -147,6 +170,7 @@ class Tensor(Node):
                 The partial derivatives of the max(a, b)
                 are 1. for a when a is larger than b, otherwise 0 and vice-versa for b.
             """
+            # TODO cast to same dtype, do not cast always to float, which implies double-precision
             self.local_grad = {
                 op1.id: (op1.value > op2.value).astype(float),
                 op2.id: (op2.value > op1.value).astype(float)
@@ -268,13 +292,12 @@ class Tensor(Node):
     def __mul__(self, other):
         if not isinstance(other, Tensor):
             raise Exception(f"Mul with {type(other)} not supported")
-        # TODO do we need this if-else ? Implement mat-mul operator @
-        if self.value.ndim == 0 or other.value.ndim == 0 or self.value.shape == (1, ) or other.value.shape == (1, ):
-            result = self.value * other.value
-        else:
-            # TODO add check for matmul
-            result = np.matmul(self.value, other.value)
+        result = self.value * other.value
         return Tensor(result, None, True, parents=[self, other], op="*")
+
+    def __matmul__(self, other):
+        result = np.matmul(self.value, other.value)
+        return Tensor(result, None, True, parents=[self, other], op="@")
 
     def __rmul__(self, other):
         return type(self).__mul__(self, other)

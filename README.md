@@ -28,8 +28,26 @@ TODO image
 
 # TODO 
 
+# Fixes 
+
 - Make backward-functions for each operator, reference the function object instead of large switch-case 
-- Fix NaNs
+- [] Refactor to function classes which store the operands and derive from node. Do not use tensor for functions (arch from micrograd)
+- [] implement matmul
+- [] Remove ids of nodes, use list as parents
+- [] Clean up tensor-API, do not require names
+- [] Fix global states in node if any
+- [] Impl leaky ReLU
+- [X] Fix NaNs
+
+# Features
+
+- [x] matrix-vector backprop
+- [] batching 
+- [] matrix-matrix backprop
+- [] Add fashion mnist example
+- [] Add viz example 
+- [] Add more tests, refactor current tests 
+
 
 # Contributing 
 
