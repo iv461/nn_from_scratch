@@ -1,16 +1,19 @@
 import numpy as np
-import math
-from typing import List
+from typing import List, Callable, Any, Tuple
 
-
-from layers import Linear, ReLu, Sequential, Tensor, Tanh
+from layers import Linear, ReLu, Sequential, Tensor
 from autograd import Node, draw_computation_graph, square
 from losses import mse_loss
 
 import matplotlib
 import matplotlib.pyplot as plt
 
+from optimizer import GradientDescent
+
 matplotlib.use("Qt5Agg")
+# Raise error on numeric error like NaN, infinite etc.
+np.seterr(all="raise")
+random_gen = np.random.default_rng(seed=83754283547)
 
 
 def f(x):
@@ -20,97 +23,75 @@ def f(x):
     return np.sin(x) + .3 * np.exp(x)
 
 
-class Optimizer:
-
-    def __init__(self, params: np.ndarray) -> None:
-        self.params = params
-
-    def zero_grad(self):
-        """
-        Clear parameter gradients 
-        """
-        for name, param in self.params.items():
-            param.grad = None
+def create_training_data(function_to_approximate: Callable[[Any], Any], interval: Tuple[float, float], sample_size: int):
+    x_values = np.linspace(*interval, num=sample_size)
+    y_values = np.vectorize(function_to_approximate)(x_values)
+    return x_values, y_values
 
 
-class GradientDescent(Optimizer):
-    """
-    """
-
-    def __init__(self, params: np.ndarray, lr: float):
-        super().__init__(params)
-        self.lr = lr
-
-    def step(self, trace=False):
-        for name, param in self.params.items():
-            grad = param.grad
-            grad_clip_val = 20000
-            # cannot use out= as return arrays must be of ArrayType
-            grad = np.clip(grad, a_min=-grad_clip_val, a_max=grad_clip_val)
-            if trace:
-                print(f"[Optimizer] Grad is:\n{grad}")
-                print(f"[Optimizer] Old Parameters are:\n{param.value}")
-            #print(f"Grad for param {name} is {grad}")
-            np.subtract(param.value, grad * self.lr, out=param.value)
-            if trace:
-                print(f"[Optimizer] New Parameters are:\n{param.value}")
+def vectorize_model(model):
+    def vectorized(x):
+        y_pred = []
+        for x_i in x:
+            y_pred.append(model.forward(x_i))
+        return y_pred
+    return vectorized
 
 
-class Momentum(Optimizer):
+def batcher(x_y_tuple: Tuple[List[Tensor], List[Tensor]], batch_size: int):
+    x_values, y_values = x_y_tuple
+    for batch_i in range(len(x_y_tuple[0]) // batch_size):
+        # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
+        x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
+                          is_variable=False) for i, x_i in enumerate(x_values[batch_i*batch_size: (batch_i+1)*batch_size])]
+        # reshape needed for check in local grad if both are scalar
+        y_train = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
+                          is_variable=False) for i, y_i in enumerate(y_values[batch_i*batch_size: (batch_i+1)*batch_size])]
 
-    def __init__(self, params: np.ndarray, lr: float, momentum: float):
+        yield x_train, y_train
 
-        super().__init__(params)
-        self.lr = lr
-        self.momentum = momentum
-        self.b_t = None
 
-    def step(self):
-        """
-        https://pytorch.org/docs/stable/generated/torch.optim.SGD.html
-        """
+def plot_model_vs_function(vectorized_model, x_t: List[Tensor], y_t: List[Tensor], interval: Tuple[float, float]):
 
-        for name, param in self.params.items():
-            grad = param.grad
-            if self.b_t is None:
-                self.b_t = grad
-            else:
-                self.momentum
-            #print(f"Grad for param {name} is {grad}")
-            np.subtract(param.value, grad * self.lr, out=param.value)
+    x_scalars = [float(t.value) for t in x_t]
+    y_scalars = [float(t.value) for t in y_t]
+    plt.plot(x_scalars, y_scalars, label="function")
+    y_pred = vectorized_model(x_t)
+    y_pred_scalar = [float(t.value) for t in y_pred]
+    plt.plot(x_scalars, y_pred_scalar, label="model")
+    plt.title("Function vs model")
+    plt.legend()
+    plt.xlim(interval)
+    plt.show()
+
+
+def plot_loss(loss_values: List[float]):
+    plt.plot(np.arange(len(loss_values)), loss_values)
+    plt.title("Loss")
+    plt.show()
 
 
 def train():
 
-    interval = [-6, 4.5]
-
+    interval = (-6, 4.5)
     batch_size = 20
     sample_size = 5 * batch_size
-    x_vals_orig = np.linspace(*interval, num=sample_size)
+    number_of_epochs = 2000
 
-    random_gen = np.random.default_rng(seed=123456)
-    x_vals = x_vals_orig.copy()
-    random_gen.shuffle(x_vals)
-    f_v = np.vectorize(f)
-    y_vals_orig = f_v(x_vals_orig)
-    y_vals = f_v(x_vals)
+    x_values, y_values = create_training_data(
+        f, interval=interval, sample_size=sample_size)
 
-    intermediate_feat = 20
-    seq_model = Sequential([
-        Linear(in_features=1, out_features=intermediate_feat),
+    intermediate_features = 20
+    model = Sequential([
+        Linear(in_features=1, out_features=intermediate_features),
         ReLu(),
-        Linear(in_features=intermediate_feat, out_features=intermediate_feat),
+        Linear(in_features=intermediate_features,
+               out_features=intermediate_features),
         ReLu(),
-        Linear(in_features=intermediate_feat, out_features=5),
+        Linear(in_features=intermediate_features, out_features=5),
         ReLu(),
         Linear(in_features=5, out_features=1),
     ])
-
-    linear_model = Linear(in_features=1, out_features=1)
-    lin_relu = Sequential([Linear(in_features=1, out_features=1), ReLu()])
-    model = seq_model
-
-    #print(f"x_train: {x_train}, y_train: {y_train}")
 
     params = model.get_parameters()
     params_str = ', '.join(map(str, params.values()))
@@ -121,53 +102,28 @@ def train():
     # TODO workaround, fix properly
     id_counts = None
 
-    def forward_x_train(x_train):
-        y_pred = []
-        for x_i in x_train:
-            y_pred.append(model.forward(x_i))
-        return y_pred
-
-    def plot_model_vs_function(x_t: List[Tensor], y_t: List[Tensor]):
-        x_scalars = [float(t.value) for t in x_t]
-        y_scalars = [float(t.value) for t in y_t]
-        plt.plot(x_scalars, y_scalars)
-        y_pred = forward_x_train(x_t)
-        y_pred_scalar = [float(t.value) for t in y_pred]
-        plt.plot(x_scalars, y_pred_scalar)
-        plt.title("Function vs model")
-        plt.legend()
-        plt.xlim(tuple(interval))
-        plt.show()
-
-    def print_parameters():
-        for param_id, param in params.items():
-            print(f"Param {param.name}({param_id}) is: {param.value}")
-
-    last_loss = None
-
-    loss_vals = []
+    loss_values = []
 
     x_orig_t = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
-                       is_variable=False) for i, x_i in enumerate(x_vals_orig)]
+                       is_variable=False) for i, x_i in enumerate(x_values)]
     # reshape needed for check in local grad if both are scalar
     y_orig_t = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
-                       is_variable=False) for i, y_i in enumerate(y_vals_orig)]
+                       is_variable=False) for i, y_i in enumerate(y_values)]
 
-    plot_model_vs_function(x_orig_t, y_orig_t)
-    lr_decay = 1.
-    for epoch_i in range(2000):
-        for batch_i in range(sample_size // batch_size):
-            # TODO workaround, fix properly
+    vectorized_model = vectorize_model(model)
+    plot_model_vs_function(vectorized_model, x_orig_t, y_orig_t, interval)
+
+    print(f"Starting training...")
+
+    for epoch_i in range(number_of_epochs):
+        for batch_i, (x_train, y_train) in enumerate(list(batcher((x_values, y_values), batch_size))):
+            # TODO ID workaround, fix properly
             if id_counts is not None:
                 Node.id_cnt, Tensor.id_cnt = id_counts
 
+            # Manual adding up of the loss as the model is not vectorized
+            # TODO vectorize model
             loss = None
-            # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
-            x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
-                              is_variable=False) for i, x_i in enumerate(x_vals[batch_i*batch_size: (batch_i+1)*batch_size])]
-            # reshape needed for check in local grad if both are scalar
-            y_train = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
-                              is_variable=False) for i, y_i in enumerate(y_vals[batch_i*batch_size: (batch_i+1)*batch_size])]
             for x_i, y_true in zip(x_train, y_train):
                 y_pred = model.forward(x_i)
                 residual = (y_pred - y_true)
@@ -178,41 +134,27 @@ def train():
                 else:
                     loss += residual
 
-            # normalize loss
-            # 72.
             loss = loss * Tensor(np.array(1./batch_size), None, False, None)
 
+            # TODO ID workaround, fix properly
             if id_counts is None:
                 id_counts = (Tensor.id_cnt, Node.id_cnt)
 
-            if (batch_i % 50) == 0:
+            if batch_i > 0 and batch_i % 50 == 0:
                 print(f"Batch #{batch_i}, epoch #{epoch_i} loss is: {loss}")
 
-            if last_loss is not None:
-                if np.abs(last_loss-loss.value) < 0.0001:
-                    break
-
-            last_loss = loss.value
-            loss_vals.append(last_loss)
-
+            loss_values.append(loss.value)
             optimizer.zero_grad()
             loss.backward()
             # draw_computation_graph(loss)
             optimizer.step(trace=False)
-            # input()
 
-            # print_parameters()
-
-        #optimizer.lr *= lr_decay
         if (epoch_i % 300) == 0:
-            plot_model_vs_function(x_orig_t, y_orig_t)
+            plot_model_vs_function(
+                vectorized_model, x_orig_t, y_orig_t, interval)
 
-    plot_model_vs_function(x_orig_t, y_orig_t)
-
-    plt.plot(np.arange(len(loss_vals)), loss_vals)
-    plt.title("Loss")
-    plt.show()
+    plot_model_vs_function(vectorized_model, x_orig_t, y_orig_t, interval)
+    plot_loss(loss_values)
 
 
-np.seterr(all="raise")
 train()
