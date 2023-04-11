@@ -50,9 +50,9 @@ class NeuralNetwork(nn.Module):
         super(NeuralNetwork, self).__init__()
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(1, intermediate_layers),
-            nn.LeakyReLU(negative_slope=0.01),
+            nn.ReLU(),
             nn.Linear(intermediate_layers, intermediate_layers),
-            nn.LeakyReLU(negative_slope=0.01),
+            nn.ReLU(),
             nn.Linear(intermediate_layers, 1)
         )
 
@@ -123,7 +123,7 @@ def train():
 
     interval = [-6, 4.5]
 
-    intermediate_feat = 100
+    intermediate_feat = 30
     model = NeuralNetwork(intermediate_layers=intermediate_feat)
 
     batch_size = 20

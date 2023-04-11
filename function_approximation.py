@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from typing import List, Callable, Any, Tuple
 
@@ -14,6 +15,7 @@ matplotlib.use("Qt5Agg")
 # Raise error on numeric error like NaN, infinite etc.
 np.seterr(all="raise")
 random_gen = np.random.default_rng(seed=83754283547)
+random.seed(3475346502095)
 
 
 def f(x):
@@ -38,21 +40,22 @@ def vectorize_model(model):
     return vectorized
 
 
-def batcher(x_y_tuple: Tuple[List[Tensor], List[Tensor]], batch_size: int):
+def batcher(x_y_tuple: Tuple[List[Tensor], List[Tensor]], batch_size: int, shuffle=True):
     x_values, y_values = x_y_tuple
     for batch_i in range(len(x_y_tuple[0]) // batch_size):
+        zipped = list(zip(x_values, y_values))
+        if shuffle:
+            random.shuffle(zipped)
         # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
         x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
-                          is_variable=False) for i, x_i in enumerate(x_values[batch_i*batch_size: (batch_i+1)*batch_size])]
+                          is_variable=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
         # reshape needed for check in local grad if both are scalar
         y_train = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
-                          is_variable=False) for i, y_i in enumerate(y_values[batch_i*batch_size: (batch_i+1)*batch_size])]
-
+                          is_variable=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
         yield x_train, y_train
 
 
 def plot_model_vs_function(vectorized_model, x_t: List[Tensor], y_t: List[Tensor], interval: Tuple[float, float]):
-
     x_scalars = [float(t.value) for t in x_t]
     y_scalars = [float(t.value) for t in y_t]
     plt.plot(x_scalars, y_scalars, label="function")
@@ -81,16 +84,14 @@ def train():
     x_values, y_values = create_training_data(
         f, interval=interval, sample_size=sample_size)
 
-    intermediate_features = 20
+    number_of_intermediate_features = 30
     model = Sequential([
-        Linear(in_features=1, out_features=intermediate_features),
+        Linear(in_features=1, out_features=number_of_intermediate_features),
         ReLu(),
-        Linear(in_features=intermediate_features,
-               out_features=intermediate_features),
+        Linear(in_features=number_of_intermediate_features,
+               out_features=number_of_intermediate_features),
         ReLu(),
-        Linear(in_features=intermediate_features, out_features=5),
-        ReLu(),
-        Linear(in_features=5, out_features=1),
+        Linear(in_features=number_of_intermediate_features, out_features=1),
     ])
 
     params = model.get_parameters()
@@ -140,8 +141,9 @@ def train():
             if id_counts is None:
                 id_counts = (Tensor.id_cnt, Node.id_cnt)
 
-            if batch_i > 0 and batch_i % 50 == 0:
-                print(f"Batch #{batch_i}, epoch #{epoch_i} loss is: {loss}")
+            if (batch_i % 50) == 0:
+                print(
+                    f"Batch #{batch_i}, epoch #{epoch_i} loss is: {loss.value}")
 
             loss_values.append(loss.value)
             optimizer.zero_grad()
