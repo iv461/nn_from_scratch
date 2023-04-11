@@ -9,14 +9,15 @@ import autograd
 
 A = np.arange(12).reshape(3, 4).astype(np.float32)
 x = np.arange(4).astype(np.float32)
-m = 3 * np.arange(4).astype(np.float32)
+m = 3 * np.arange(3).astype(np.float32)
 
 print(f"A: {A}\nx:{x}")
 
 A_t = torch.tensor(A, device="cpu", requires_grad=True)
 x_t = torch.tensor(x, device="cpu", requires_grad=True)
 m_t = torch.tensor(m, device="cpu", requires_grad=True)
-b = A_t * x_t
+b = A_t @ x_t
+print(f"b is: {b.shape}")
 b *= m_t
 b = torch.sum(b)
 b.backward()

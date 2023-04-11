@@ -118,12 +118,14 @@ class Tensor(Node):
                 x = op2.value
                 d_f_dA = np.broadcast_to(x, (A.shape[0], len(x)))
                 # TODO correct ?
-                d_f_dx = np.sum(A.T, axis=-1)
+                d_f_dx = np.sum(A, axis=-1)
                 self.local_grad = {
                     self.parents[0].id: d_f_dA,
                     self.parents[1].id: d_f_dx}
+                # multiply two vectors of the same shape element-wise
                 return {self.parents[0].id: d_f_dx * grad_tensor,
-                        self.parents[0].id: d_f_dA * grad_tensor}
+                        # broadcast the vector over the columns and multiply element-wise
+                        self.parents[1].id: d_f_dA * grad_tensor[:, np.newaxis]}
             else:
                 raise Exception("Invalid multiplication")
 
@@ -147,7 +149,8 @@ class Tensor(Node):
         else:
             raise Exception(f"Binary op {self.operation} not implemented")
 
-        return {op1.id: self.local_grad[op1.id]*grad_tensor}
+        return {op1.id: self.local_grad[op1.id]*grad_tensor,
+                op2.id: self.local_grad[op2.id]*grad_tensor}
 
     def calc_local_grad_unary_ops(self, grad_tensor: Tensor):
         """
@@ -198,18 +201,15 @@ class Tensor(Node):
         # TODO vector-valued output, multiply parent with child
 
         def dfs(node: Tensor):
-            node.calc_local_gradient_and_mul(node.grad)
+            multiplied_grad = node.calc_local_gradient_and_mul(node.grad)
             for parent in node.parents:
                 # Skip calculation of gradients for nodes for which we should not calculate the gradient
                 if not parent.is_variable:
                     continue
 
-                a = node.grad
-                b = node.local_grad[parent.id]
-                grad_elem = a * b
+                grad_elem = multiplied_grad[parent.id]
 
                 if trace:
-
                     print(
                         f"Grad product of for d{node.name}/{parent.name} is:\n{grad_elem}")
 
