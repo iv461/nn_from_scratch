@@ -85,5 +85,41 @@ def matrix_multiplication():
     assert np.allclose(M_t.grad.numpy(), M_t2.grad)
 
 
+def two_layer_nn(x, w1, b1, w2, b2, w3, b3):
+    res = w1 @ x + b1
+    res = w2 @ res + b2
+    res = w3 @ res + b3
+    return res
+
+
+def nn_test():
+    intermediate_feat = 20
+    x = np.random.rand(1).astype(np.float32)
+
+    w1 = np.random.rand(intermediate_feat, 1).astype(np.float32)
+    b1 = np.random.rand(intermediate_feat).astype(np.float32)
+    w2 = np.random.rand(intermediate_feat,
+                        intermediate_feat).astype(np.float32)
+    b2 = np.random.rand(intermediate_feat).astype(np.float32)
+    w3 = np.random.rand(1, intermediate_feat).astype(np.float32)
+    b3 = np.random.rand(1).astype(np.float32)
+
+    params = [w1, b1, w2, b2, w3, b3]
+    params_torch = map(lambda p: torch.tensor(
+        p, device="cpu", requires_grad=True), params)
+    params_ag = map(lambda p: autograd.Tensor(p, "p"), params)
+
+    y = two_layer_nn(torch.tensor(
+        x, device="cpu", requires_grad=False), *params_torch)
+    y.backward()
+
+    y2 = two_layer_nn(autograd.Tensor(x, "x"), *params_ag)
+    y2.backward()
+
+    assert all([np.allclose(p_torch.grad.numpy(), p_ag.grad)
+               for p_torch, p_ag in zip(params_torch, params_ag)])
+
+
 matrix_vector_multiplication()
 matrix_multiplication()
+nn_test()
