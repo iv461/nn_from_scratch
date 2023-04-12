@@ -1,8 +1,6 @@
 import numpy as np
 from typing import Dict
 from nn_from_scratch.autograd import Tensor
-# TODO take Tensor as argument ?
-
 
 class Optimizer:
 

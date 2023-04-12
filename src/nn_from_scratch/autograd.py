@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from typing import Union
+from typing import Union, List, Optional
 
 
 class Node:
@@ -25,8 +25,10 @@ class Node:
 class Tensor(Node):
     cnt = 0
 
-    def __init__(self, value: np.ndarray, name: Union[str, None], requires_grad=True, parents=None, op=None, is_batched=None) -> None:
-        if not name:
+    def __init__(self, value: np.ndarray, name: Optional[str] = None, 
+                 requires_grad=True, parents: Optional[List[Tensor]] = None,
+                   op: Optional[str] = None, is_batched=None) -> None:
+        if name is None:
             # TODO fix
             prefix = "f" if requires_grad else "c"
             name = f"{prefix}_{Tensor.cnt}"
@@ -204,8 +206,7 @@ class Tensor(Node):
         """
         if len(self.parents) == 1:
             return self.calc_local_grad_unary_ops(grad_tensor)
-        elif len(self.parents) == 2:
-            return self.calc_local_grad_binary_ops(grad_tensor)
+        return self.calc_local_grad_binary_ops(grad_tensor)
 
     def backward(self, trace=False, profile=False):
         """
@@ -288,18 +289,15 @@ def _max(op1: Tensor, op2: Union[Tensor, float]):
         op2_t = Tensor(value=op2, name=None, requires_grad=False)
     else:
         op2_t = op2
-    val = np.maximum(op1.value, op2_t.value)
-    return Tensor(val, None, True, [op1, op2_t], "max")
+    result = np.maximum(op1.value, op2_t.value)
+    return Tensor(result, None, True, [op1, op2_t], "max")
 
 
 def max(op1, op2):
-    if not (isinstance(op1, Tensor) or isinstance(op2, Tensor)):
-        return max(op1, op2)
+    if isinstance(op1, Tensor):
+        return _max(op1, op2)
     else:
-        if isinstance(op1, Tensor):
-            return _max(op1, op2)
-        else:
-            return _max(op2, op1)
+        return _max(op2, op1)
 
 
 def mean(op1: Tensor): return Tensor(

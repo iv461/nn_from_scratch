@@ -1,11 +1,3 @@
-import os  # nopep8
-import sys  # nopep8
-import pathlib  # nopep8
-sys.path.insert(0, pathlib.Path(__file__).parents)  # nopep8
-
-
-print(f"Path is:\n{sys.path}")  # nopep8
-
 from typing import List, Callable, Any, Tuple
 import numpy as np
 import random
@@ -78,6 +70,8 @@ def plot_model_vs_function(vectorized_model, x_t: List[Tensor], y_t: List[Tensor
 def plot_loss(loss_values: List[float]):
     plt.plot(np.arange(len(loss_values)), loss_values)
     plt.title("Loss")
+    plt.ylabel("MSE-loss")
+    plt.xlabel("Iterations")
     plt.show()
 
 
@@ -119,6 +113,7 @@ def train():
                        requires_grad=False) for i, y_i in enumerate(y_values)]
 
     vectorized_model = vectorize_model(model)
+    print(f"Initial model: Close window to continue training")
     plot_model_vs_function(vectorized_model, x_orig_t, y_orig_t, interval)
 
     print(f"Starting training...")
@@ -148,20 +143,20 @@ def train():
             if id_counts is None:
                 id_counts = (Tensor.id_cnt, Node.id_cnt)
 
-            if (batch_i % 50) == 0:
-                print(
-                    f"Batch #{batch_i}, epoch #{epoch_i} loss is: {loss.value}")
-
             loss_values.append(loss.value)
             optimizer.zero_grad()
             loss.backward()
             # draw_computation_graph(loss)
             optimizer.step(trace=False)
 
-        if (epoch_i % 300) == 0:
+        print(f"Epoch #{epoch_i} loss is: {float(loss_values[-1]):.4f}")
+
+        if epoch_i > 0 and (epoch_i % 300) == 0:
+            print(f"Current model: Close window to continue training")
             plot_model_vs_function(
                 vectorized_model, x_orig_t, y_orig_t, interval)
 
+    print(f"Finished training, final model: Close window to show loss curves")
     plot_model_vs_function(vectorized_model, x_orig_t, y_orig_t, interval)
     plot_loss(loss_values)
 

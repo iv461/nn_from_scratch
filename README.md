@@ -22,7 +22,7 @@ pip install -e .
 
 # Examples 
 
-[function_approximation](function_approximation.py) 
+[function_approximation](examples/function_approximation.py) 
 TODO image 
 
 # Run tests 
