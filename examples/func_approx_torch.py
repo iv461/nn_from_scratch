@@ -2,9 +2,9 @@ import numpy as np
 
 from torch import nn, from_numpy as t_from_from_numpy
 from torch import Tensor
-from torch import functional as F
+
 from torch.utils.data import Dataset, DataLoader
-from torch.optim import SGD, Adam
+from torch.optim import SGD
 
 import matplotlib
 import matplotlib.pyplot as plt

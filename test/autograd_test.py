@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import autograd
+import ..autograd
 
 np.random.default_rng(seed=587346287)
 
