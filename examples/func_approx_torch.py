@@ -136,24 +136,16 @@ def train():
 
     params = model.parameters()
 
-    #optimizer = Adam(params, lr=.01)
-    optimizer = SGD(params, lr=1e-3)
+    optimizer = SGD(params, lr=1e-2)
     mse_loss = nn.MSELoss()
 
-    # Move to cuda
-    # if torch.cuda.is_available():
-    #    pass
-    #model = model.cuda()
-
-    #plot_model_vs_function(model, dataset.x_vals, dataset.y_vals, interval)
-
     loss_vals = []
-    epochs = 2000
+    epochs = 10000
     for epoch_i in range(epochs):
         loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
 
         print(f"Epoch #{epoch_i} loss is: {loss_vals[-1]}")
-        if (epoch_i % 1000) == 0:
+        if (epoch_i % 5000) == 0:
 
             plot_model_vs_function(model, dataset.x_vals,
                                    dataset.y_vals, interval)

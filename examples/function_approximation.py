@@ -1,12 +1,19 @@
-import random
-import numpy as np
-from typing import List, Callable, Any, Tuple
+import os  # nopep8
+import sys  # nopep8
+import pathlib  # nopep8
+sys.path.insert(0, pathlib.Path(__file__).parents)  # nopep8
 
+
+print(f"Path is:\n{sys.path}")  # nopep8
+
+from typing import List, Callable, Any, Tuple
+import numpy as np
+import random
 from nn_from_scratch.layers import Linear, ReLu, Sequential, Tensor
-from nn_from_scratch.autograd import Node, draw_computation_graph, square
+from nn_from_scratch.autograd import Node, square
 from nn_from_scratch.losses import mse_loss
 from nn_from_scratch.optimizer import GradientDescent
-
+import nn_from_scratch
 import matplotlib
 import matplotlib.pyplot as plt
 

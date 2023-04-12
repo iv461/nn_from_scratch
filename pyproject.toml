@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nn_from_scratch"
+version = "0.1.0"
+authors = [
+  { name="Ivo Ivanov", email="author@example.com" },
+]
+description = "NNs from scratch"
+readme = "README.md"
+license = { file="LICENSE" }
+dependencies = [
+    "matplotlib",
+    "networkx",
+    "pydot",
+    "numpy"
+]
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Linux",
+]

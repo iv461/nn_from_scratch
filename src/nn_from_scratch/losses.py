@@ -1,6 +1,6 @@
 
 from nn_from_scratch.autograd import Tensor
-import autograd
+from nn_from_scratch.autograd import sum, mean, square
 
 
 def mse_loss(y_true: Tensor, y_pred: Tensor) -> Tensor:
@@ -15,4 +15,4 @@ def mse_loss(y_true: Tensor, y_pred: Tensor) -> Tensor:
     """
     assert y_true.value.shape == y_pred.value.shape, "y_true an y_pred have to be of the same shape"
     assert y_true.value.ndim >= 1, "y has to be an array of at least scalars"
-    return autograd.sum(autograd.mean(autograd.square(y_pred - y_true)))
+    return sum(mean(square(y_pred - y_true)))

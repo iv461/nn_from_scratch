@@ -3,6 +3,8 @@
 import numpy as np
 from nn_from_scratch.layers import Perceptron, Linear, Sequential, ReLu
 from nn_from_scratch.autograd import Tensor
+from nn_from_scratch.graph_drawing import draw_computation_graph
+import time
 
 
 def test_perceptron():

@@ -1,0 +1,14 @@
+{
+    "pythonVersion": "3.8",
+    "reportMissingTypeStubs": false,
+    "typeCheckingMode": "strict",
+    "reportUnknownMemberType": false,
+    "reportUnknownParameterType": false,
+    "reportUnknownArgumentType": false,
+    "reportUnknownVariableType": false,
+    "reportUnknownLambdaType": false,
+    "reportMissingTypeArgument": false,
+    "reportMissingParameterType": false,
+    "reportUnusedVariable": false,
+    "reportUnusedImport": false
+}
