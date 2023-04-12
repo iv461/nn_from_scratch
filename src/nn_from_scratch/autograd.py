@@ -27,7 +27,7 @@ class Tensor(Node):
     cnt = 0
 
     def __init__(self, value: np.ndarray, name: Optional[str] = None,
-                 requires_grad=True, parents: Optional[List[Tensor]] = None,
+                 requires_grad=False, parents: Optional[List[Tensor]] = None,
                  op: Optional[str] = None, is_batched=None):
         if name is None:
             # TODO fix
@@ -89,7 +89,6 @@ class Tensor(Node):
 
         self.grad = np.array(1.)
         dfs(self)
-
 
     def __add__(self, other):
         """
@@ -277,6 +276,8 @@ class Tensor(Node):
                 f"Operation with {other_operand} of with shapes {self.value.shape} and {other_operand.value.shape} not supported")
 
 # common functions
+
+
 def _max(op1: Tensor, op2: Union[Tensor, float]):
     if not (isinstance(op2, float) or isinstance(op2, Tensor)):
         raise Exception("")

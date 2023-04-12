@@ -1,17 +1,41 @@
 # Neural networks with backprop from scratch 
+Neural networks and backprop from scratch in Python with numpy.
+Why ? Learning how backprop works and how/why the PyTorch API is designed.
 
-API is designed to be similar to pytorch, but in general the pytorch framework is much more complex, so the internals in this repo are not supposed to be a simple pytorch. 
+PyTorch is of of course much more complex, so this repo is not supposed to be an re-implementation of PyTorch or even imply implementation details of PyTorch.  
 
 # Features  
 
 - Linear/Dense Layers
 - ReLU, Sigmoid, TanH activation functions 
 - MSELoss 
-- Backprop/autograd for arbitrary tensors, with vectorization
+- Backprop/autograd for up to 2d-arrays
 - Uniform weights initializer, same as pytorch
 - Plotting of computational graphs including partial derivatives
-- based on numpy
 
+# Examples 
+
+[function_approximation.py](examples/function_approximation.py) 
+![](images/function_approximation.png)
+
+[Visualization of Compuational graph](examples/visualize_computational_graph.py)
+![](images/computational_graph_linear_layer.png)
+
+# Usage 
+
+```python 
+model = Sequential([
+        Linear(in_features=10, out_features=30),
+        ReLu(),
+        Linear(in_features=30,
+               out_features=30),
+        ReLu(),
+        Linear(in_features=30, out_features=1),
+    ])
+x_input = Tensor(np.arange(10))
+y_output = model.forward(x_input)
+y_output.backward()
+```
 # Install/Dependencies 
 
 As no proper installer is available for graphviz, on Windows you have to download, unpack the folder anywhere and add the bin subfolder to the PATH environment variable such that the drawing of the graph works.
@@ -20,10 +44,6 @@ As no proper installer is available for graphviz, on Windows you have to downloa
 pip install -e .
 ```
 
-# Examples 
-
-[function_approximation](examples/function_approximation.py) 
-TODO image 
 
 # Run tests 
 
@@ -58,7 +78,7 @@ python -m unittest
 # Contributing 
 
 Contributions are greatly appreciated, especially corrections regarding backprop, vectorization and refactorings/simplifications to improve readability of the code and/or consistency with pytorch. 
-Also better visualization, documentation and more examples are appreciated. But this repo is written for educational purpose and thus speed optimizations for the cost of code complexity is not desired.
+Also better visualization, documentation and more examples are appreciated. But this repo is written for educational purposes and thus speed optimizations for the cost of code complexity are not desired.
 
 # Reference: 
 
