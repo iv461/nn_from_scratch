@@ -2,14 +2,14 @@ import random
 import numpy as np
 from typing import List, Callable, Any, Tuple
 
-from layers import Linear, ReLu, Sequential, Tensor
-from autograd import Node, draw_computation_graph, square
-from losses import mse_loss
+from nn_from_scratch.layers import Linear, ReLu, Sequential, Tensor
+from nn_from_scratch.autograd import Node, draw_computation_graph, square
+from nn_from_scratch.losses import mse_loss
+from nn_from_scratch.optimizer import GradientDescent
 
 import matplotlib
 import matplotlib.pyplot as plt
 
-from optimizer import GradientDescent
 
 matplotlib.use("Qt5Agg")
 # Raise error on numeric error like NaN, infinite etc.
