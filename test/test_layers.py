@@ -3,7 +3,7 @@
 import numpy as np
 from nn_from_scratch.layers import Perceptron, Linear, Sequential, ReLu
 from nn_from_scratch.autograd import Tensor
-from nn_from_scratch.graph_drawing import draw_computation_graph
+from nn_from_scratch.graph_drawing import build_and_draw_computation_graph
 import time
 
 
@@ -15,13 +15,13 @@ def test_perceptron():
 
     x = np.arange(in_dim)
     # We create a list of tensors to test the scalar case, normally we wouldn't do this
-    x_t = [Tensor(np.array(x_i), f"x_{i}", is_variable=False)
+    x_t = [Tensor(np.array(x_i), f"x_{i}", requires_grad=False)
            for i, x_i in enumerate(x)]
     res = p.forward(x_t)
 
     res.backward()
 
-    draw_computation_graph(res, 2.)
+    # TODO test case
 
 
 def test_linear():
@@ -33,14 +33,14 @@ def test_linear():
     params = l.get_parameters()
     print(f"params: {params}")
 
-    x_t = Tensor(np.arange(in_dim), "x", is_variable=False)
+    x_t = Tensor(np.arange(in_dim), "x", requires_grad=False)
 
     res = l.forward(x_t)
 
     print(f"Result: {res}")
     gradients = res.backward()
     print(f"Gradients: {gradients}")
-    draw_computation_graph(res, 2.)
+    # TODO test something
 
 
 def test_sequential_model():
@@ -58,7 +58,7 @@ def test_sequential_model():
     nn_params = nn_model.get_parameters()
     print(f"NN params: {nn_params}")
 
-    x_t = Tensor(np.arange(in_dim), "x", is_variable=False)
+    x_t = Tensor(np.arange(in_dim), "x", requires_grad=False)
 
     start_ = time.perf_counter()
     res = nn_model.forward(x_t)
@@ -72,9 +72,9 @@ def test_sequential_model():
     res.backward()
     end_ = time.perf_counter()
     print(f"Backward took {(end_ - start_) * 1000.}ms")
-    draw_computation_graph(res, 2.)
+    # TODO test something
 
 
-test_perceptron()
+#test_perceptron()
 test_linear()
 test_sequential_model()

@@ -27,6 +27,7 @@ TODO image
 
 # Run tests 
 
+To run the tests, pytorch is required as dependency to suit as a reference. 
 ```
 python -m unittest
 ```

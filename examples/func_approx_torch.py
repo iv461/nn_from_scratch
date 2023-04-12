@@ -136,11 +136,11 @@ def train():
 
     params = model.parameters()
 
-    optimizer = SGD(params, lr=1e-2)
+    optimizer = SGD(params, lr=1e-3)
     mse_loss = nn.MSELoss()
 
     loss_vals = []
-    epochs = 10000
+    epochs = 2000
     for epoch_i in range(epochs):
         loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
 

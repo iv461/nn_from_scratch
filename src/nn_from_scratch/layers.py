@@ -3,7 +3,7 @@ import numpy as np
 import math
 import nn_from_scratch.autograd as autograd
 from nn_from_scratch.autograd import Tensor
-from typing import List, Union
+from typing import List, Union, Dict
 
 
 class Parameter(Tensor):
@@ -31,7 +31,7 @@ class Module:
     def __init__(self, name):
         self.name = name
 
-    def get_parameters(self):
+    def get_parameters(self) -> Dict[int, Parameter]:
         return {v.id: v for k, v in self.__dict__.items() if isinstance(v, Parameter)}
 
     def forward(self, x: Tensor) -> Tensor:

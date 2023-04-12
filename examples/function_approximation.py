@@ -55,10 +55,10 @@ def batcher(x_y_tuple: Tuple[List[Tensor], List[Tensor]], batch_size: int, shuff
             random.shuffle(zipped)
         # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
         x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
-                          is_variable=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
+                          requires_grad=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
         # reshape needed for check in local grad if both are scalar
         y_train = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
-                          is_variable=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
+                          requires_grad=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
         yield x_train, y_train
 
 
@@ -113,10 +113,10 @@ def train():
     loss_values = []
 
     x_orig_t = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
-                       is_variable=False) for i, x_i in enumerate(x_values)]
+                       requires_grad=False) for i, x_i in enumerate(x_values)]
     # reshape needed for check in local grad if both are scalar
     y_orig_t = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
-                       is_variable=False) for i, y_i in enumerate(y_values)]
+                       requires_grad=False) for i, y_i in enumerate(y_values)]
 
     vectorized_model = vectorize_model(model)
     plot_model_vs_function(vectorized_model, x_orig_t, y_orig_t, interval)

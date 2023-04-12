@@ -25,16 +25,16 @@ class Node:
 class Tensor(Node):
     cnt = 0
 
-    def __init__(self, value: np.ndarray, name: Union[str, None], is_variable=True, parents=None, op=None, is_batched=None) -> None:
+    def __init__(self, value: np.ndarray, name: Union[str, None], requires_grad=True, parents=None, op=None, is_batched=None) -> None:
         if not name:
             # TODO fix
-            prefix = "f" if is_variable else "c"
+            prefix = "f" if requires_grad else "c"
             name = f"{prefix}_{Tensor.cnt}"
             Tensor.cnt += 1
 
         super().__init__(parents, None, name)
         """
-        The value of the variable or contant,
+        The value of the variable or constant,
          or the result of an operation if this node is an operation,
           in this case it is calculated and stored during the forward pass
         """
@@ -43,8 +43,8 @@ class Tensor(Node):
         self.grad = None
         # String expression of the gradient, for debug
         self.grad_exp = None
-        # Wheter it is a variable and thus a gradient needs to be calculated w.r.t to it
-        self.is_variable = is_variable
+        # Whether a gradient needs to be calculated w.r.t to it or not.
+        self.requires_grad = requires_grad
         # name of operation which produced this tensor, can be none if the node is a variable or constant
         self.operation = op
         # The local gradient vector, it is a dict from the Ids of the parent nodes as key
@@ -62,10 +62,10 @@ class Tensor(Node):
         else:
             self.is_batched = is_batched
 
-    def calc_local_grad_binary_ops(self, grad_tensor: Tensor):
+    def calc_local_grad_binary_ops(self, grad_output: np.ndarray):
         """
         Calculates the "local" partial derivatives of this function, for common binary operations like +, -, * etc.
-        Sets self.local_grad and returns the local gradient multiplied with grad_tensor (chain-rule applied)
+        Sets self.local_grad and returns the local gradient multiplied with grad_output (chain-rule applied)
         """
         assert len(self.parents) == 2
 
@@ -119,8 +119,8 @@ class Tensor(Node):
                 # Another option would be np.outer.
                 # In numpy essentially you can't  calculate (A @ x) @ x.T given that x is a vector and A @ x is a valid matrix-multiplication.
                 # It seems PEP 465 does not consider outer product.
-                d_f_dA = grad_tensor[:, np.newaxis] @ x[np.newaxis, :]
-                d_f_dx = grad_tensor @ A
+                d_f_dA = grad_output[:, np.newaxis] @ x[np.newaxis, :]
+                d_f_dx = grad_output @ A
 
                 self.local_grad = {
                     self.parents[0].id: x,
@@ -130,7 +130,7 @@ class Tensor(Node):
                         op2.id: d_f_dx}
             elif op1.value.ndim == 2 and op2.value.ndim == 2:
                 # matrix-matrix case
-                M = grad_tensor
+                M = grad_output
                 A = op1.value
                 B = op2.value
                 df_dA = M @ B.T
@@ -163,10 +163,10 @@ class Tensor(Node):
         else:
             raise Exception(f"Binary op {self.operation} not implemented")
 
-        return {op1.id: self.local_grad[op1.id]*grad_tensor,
-                op2.id: self.local_grad[op2.id]*grad_tensor}
+        return {op1.id: self.local_grad[op1.id]*grad_output,
+                op2.id: self.local_grad[op2.id]*grad_output}
 
-    def calc_local_grad_unary_ops(self, grad_tensor: Tensor):
+    def calc_local_grad_unary_ops(self, grad_tensor: np.ndarray):
         """
         Calculates the "local" partial derivatives of this function, 
         for common unary operations like unary sum (including single operand case), mean and square
@@ -194,7 +194,7 @@ class Tensor(Node):
 
         return {op1.id: self.local_grad[op1.id]*grad_tensor}
 
-    def calc_local_gradient_and_mul(self, grad_tensor: Tensor):
+    def calc_local_gradient_and_mul(self, grad_tensor: np.ndarray):
         """
         Get the gradient of the output of this opnode w.r.t to all the parents.
         This calculates the local gradient and multiplies it with the already multplied gradiend 
@@ -209,35 +209,28 @@ class Tensor(Node):
 
     def backward(self, trace=False, profile=False):
         """
-        Runs backprop, returns dict of the Tensor names as dict
+        Runs backpropagation algoritm and sets all the gradients for tensors requiring gradients.
+        It assumes that this tensor is scalar-valued.
         """
-        gradient = {}
-        # TODO vector-valued output, multiply parent with child
-
         def dfs(node: Tensor):
             multiplied_grad = node.calc_local_gradient_and_mul(node.grad)
             for parent in node.parents:
                 # Skip calculation of gradients for nodes for which we should not calculate the gradient
-                if not parent.is_variable:
+                if not parent.requires_grad:
                     continue
-
                 grad_elem = multiplied_grad[parent.id]
 
                 if trace:
                     print(
                         f"Grad product of for d{node.name}/{parent.name} is:\n{grad_elem}")
-
                 if parent.grad is None:
                     parent.grad = 0.
                 parent.grad += grad_elem
-                gradient[parent.name] = grad_elem
                 if parent.operation:
-
                     dfs(parent)
 
         self.grad = np.array(1.)
         dfs(self)
-        return gradient
 
     def op_checks_vector(self, other_operand):
         if not isinstance(other_operand, Tensor):
@@ -264,31 +257,23 @@ class Tensor(Node):
         self.op_checks_vector(other)
         return Tensor(self.value + other.value, None, True, parents=[self, other], op="+")
 
-    def __radd__(self, other):
-        return type(self).__add__(self, other)
+    def __radd__(self, other): return type(self).__add__(self, other)
 
     def __sub__(self, other):
         self.op_checks_vector(other)
         return Tensor(self.value - other.value, None, True, parents=[self, other], op="-")
 
-    def __rsub__(self, other):
-        return type(self).__sub__(self, other)
+    def __rsub__(self, other): return type(self).__sub__(self, other)
 
-    def __mul__(self, other):
-        if not isinstance(other, Tensor):
-            raise Exception(f"Mul with {type(other)} not supported")
-        result = self.value * other.value
-        return Tensor(result, None, True, parents=[self, other], op="*")
+    def __mul__(self, other: Tensor): return Tensor(
+        self.value * other.value, None, True, parents=[self, other], op="*")
 
-    def __matmul__(self, other):
-        result = np.matmul(self.value, other.value)
-        return Tensor(result, None, True, parents=[self, other], op="@")
+    def __matmul__(self, other: Tensor): return Tensor(
+        self.value @ other.value, None, True, parents=[self, other], op="@")
 
-    def __rmul__(self, other):
-        return type(self).__mul__(self, other)
+    def __rmul__(self, other: Tensor): return type(self).__mul__(self, other)
 
-    def __str__(self) -> str:
-        return f"{self.value}, grad: {self.grad}"
+    def __str__(self) -> str: return f"{self.value}, grad: {self.grad}"
 
 
 # common functions
@@ -300,7 +285,7 @@ def _max(op1: Tensor, op2: Union[Tensor, float]):
         # Broadcast to be able to do max(np.array(...), 0)
         if not isinstance(op1.value, float):
             op2 = np.broadcast_to(op2, op1.value.shape)
-        op2_t = Tensor(value=op2, name=None, is_variable=False)
+        op2_t = Tensor(value=op2, name=None, requires_grad=False)
     else:
         op2_t = op2
     val = np.maximum(op1.value, op2_t.value)
@@ -317,17 +302,17 @@ def max(op1, op2):
             return _max(op2, op1)
 
 
-def mean(op1: Tensor):
-    return Tensor(np.mean(op1.value), None, True, [op1], "mean")
+def mean(op1: Tensor): return Tensor(
+    np.mean(op1.value), None, True, [op1], "mean")
 
 
-def sum(op1: Tensor):
-    return Tensor(np.sum(op1.value), None, True, [op1], "sum")
+def sum(op1: Tensor): return Tensor(
+    np.sum(op1.value), None, True, [op1], "sum")
 
 
-def square(op1: Tensor):
-    return Tensor(np.square(op1.value), None, True, [op1], "square")
+def square(op1: Tensor): return Tensor(
+    np.square(op1.value), None, True, [op1], "square")
 
 
-def tanh(op1: Tensor):
-    return Tensor(np.tanh(op1.value), None, True, [op1], "tanh")
+def tanh(op1: Tensor): return Tensor(
+    np.tanh(op1.value), None, True, [op1], "tanh")

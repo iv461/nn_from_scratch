@@ -33,11 +33,11 @@ array([ 5,  6,  7,  8,  9, 10, 11, 12, 13, 14])
 
 ```
 
-Because of broadcasting, our addition and substraction methods already work for batch-sized inputs, we don't have to modify them.
+Because of broadcasting, our addition and subtraction methods already work for batch-sized inputs, we don't have to modify them.
 
 ## Multiplication 
 
-For the multiplication to work, we have to modify it slighty, first the scalar-vector multiplication case: 
+For the multiplication to work, we have to modify it slightly, first the scalar-vector multiplication case: 
 If we a batch-sized tensor with scalars and want to multiply  it with a weights-vector, we have to a `(batch_size, 1)`-shaped tensor of the training data 
 and a `(vector_size,)`-shaped tensor of weights for the broadcasting to work: 
 

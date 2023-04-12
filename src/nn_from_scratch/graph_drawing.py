@@ -1,18 +1,22 @@
 import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
 import matplotlib.pyplot as plt
-from autograd import Tensor
+from nn_from_scratch.autograd import Tensor
 
 
-def build_networkx_graph(root_node: Tensor):
+def build_networkx_graph(root_node: Tensor) -> nx.DiGraph:
     """
-    Builds a networksx computation graph from the tensor tree, for debug visualization.
-    We have to put the node objects as data, otherwise the graphviz_layout function throws an exception,
-    it seems that this is a bug in networkx.
+    Builds a networkx computation graph from the tensor tree, for debug visualization.
+    Args:
+        root_node (Tensor): 
+
+    Returns:
+        nx.DiGraph: the build networkx graph with the tensors as node data, available with the key "ag_tensor" 
     """
     nx_graph = nx.DiGraph()
 
     def dfs(node: Tensor):
+        # We have to put the node objects as data, otherwise the graphviz_layout function throws an exception, it seems that this is a bug in networkx.
         nx_graph.add_node(node.id, ag_tensor=node)
         if not node.parents:
             return
@@ -23,10 +27,16 @@ def build_networkx_graph(root_node: Tensor):
     return nx_graph
 
 
-def draw_computation_graph(root_tensor: Tensor, size=1.):
+def build_and_draw_computation_graph(root_tensor: Tensor, size=1.):
     """
-    Draw the computation graph for a given root tensor
-    Opens the window
+    Draw the computation graph for a given root tensor and opens a window.
+
+    Args:
+        root_tensor (Tensor): the root tensor 
+        size (_type_, optional): Scale. Defaults to 1..
+
+    Returns:
+        _type_: _description_
     """
 
     nx_graph = build_networkx_graph(root_tensor)
@@ -34,7 +44,7 @@ def draw_computation_graph(root_tensor: Tensor, size=1.):
     def node_type_to_color(node: Tensor):
         if node.operation:
             return "#E6BF00"
-        elif node.is_variable:
+        elif node.requires_grad:
             return "#E6E600"
         else:
             return "#0044cc"
