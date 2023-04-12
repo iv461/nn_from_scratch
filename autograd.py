@@ -120,14 +120,13 @@ class Tensor(Node):
                 # Partial derivative w.r.t to the Matrix is the vector repeated as rows of the matrix
                 A = op1.value
                 x = op2.value
-                # First, broadcast the vector row-wise to create a matrix.
-                x_broadcasted = np.broadcast_to(x, (A.shape[0], len(x)))
-                # Then broadcast the vector over the columns and multiply element-wise
-                d_f_dA = x_broadcasted * grad_tensor[:, np.newaxis]
-                # Multiply every column with the same vec element wise
-                A_mult = A * grad_tensor[:, np.newaxis]
-                # Then sum all rows
-                d_f_dx = np.sum(A_mult.T, axis=-1)
+                # In linear algebra, this would be an ordinary matrix-multiplication as the line below,
+                # but numpy throws an error when you try to matrix-multiply two vectors. So we have to explicitly specify the outer product.
+                # Another option would be np.outer.
+                # In numpy essentially you can't  calculate (A @ x) @ x.T given that x is a vector and A @ x is a valid matrix-multiplication.
+                # It seems PEP 465 does not consider outer product.
+                d_f_dA = grad_tensor[:, np.newaxis] @ x[np.newaxis, :]
+                d_f_dx = grad_tensor @ A
 
                 self.local_grad = {
                     self.parents[0].id: x,
@@ -140,16 +139,8 @@ class Tensor(Node):
                 M = grad_tensor
                 A = op1.value
                 B = op2.value
-                # Derivation of the following lines is three A4 pages incl. visualization
-                B_exp = B[np.newaxis, :]
-                M_exp = M[:, np.newaxis, :]
-                R = B_exp * M_exp
-                df_dA = np.sum(R, axis=2)
-                A_exp = A[np.newaxis, :]
-                M_exp2 = M.T[:, :, np.newaxis]
-                R2 = A_exp * M_exp2
-                df_dB = np.sum(R2, axis=1)
-                df_dB = df_dB.T
+                df_dA = M @ B.T
+                df_dB = A.T @ M
                 self.local_grad = {
                     op1.id: B,
                     op2.id: A}
