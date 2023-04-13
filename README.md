@@ -58,9 +58,9 @@ python -m unittest
 
 - Make backward-functions for each operator, reference the function object instead of large switch-case 
 - [] Refactor to function classes which store the operands and derive from node. Do not use tensor for functions (arch from micrograd)
-- [] implement matmul
+- [X] implement matmul
 - [] Remove ids of nodes, use list as parents
-- [] Clean up tensor-API, do not require names
+- [X] Clean up tensor-API, do not require names
 - [] Fix global states in node if any
 - [] Impl leaky ReLU
 - [X] Fix NaNs
@@ -71,9 +71,11 @@ python -m unittest
 - [] batching 
 - [x] matrix-matrix backprop
 - [] Add fashion mnist example
-- [] Add viz example 
-- [] Add more tests, refactor current tests 
-
+- [X] Add viz example 
+- [X] Add more tests, refactor current tests 
+- [] Reduce complexity of graph visualization
+- [] Improve vizualization quality, use Tex rendering backend
+- [] Remove perceptron, it seems this is only an unit test 
 
 # Contributing 
 
