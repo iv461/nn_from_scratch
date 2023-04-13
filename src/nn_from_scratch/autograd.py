@@ -200,17 +200,16 @@ class Tensor(Node):
                 op1.id: 1. / op2.value,
                 op2.id: (-op1.value / op2.value ** 2)}
         elif self.operation == "max":
-            assert both_scalar_or_same_shape
+            #assert both_scalar_or_same_shape
             """
                 Does element-wise comparison with numpy,
                 if True, then it is converted to 1., otherwise to 0. .
                 The partial derivatives of the max(a, b)
                 are 1. for a when a is larger than b, otherwise 0 and vice-versa for b.
             """
-            # TODO cast to same dtype, do not cast always to float, which implies double-precision
             self.local_grad = {
-                op1.id: (op1.value > op2.value).astype(float),
-                op2.id: (op2.value > op1.value).astype(float)
+                op1.id: (op1.value > op2.value).astype(op1.value.dtype),
+                op2.id: (op2.value > op1.value).astype(op1.value.dtype)
             }
         else:
             raise Exception(f"Binary op {self.operation} not implemented")

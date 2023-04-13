@@ -15,7 +15,7 @@ class Parameter(Tensor):
     """
 
     def __init__(self, name, value: np.ndarray) -> None:
-        super().__init__(value, name)
+        super().__init__(value, name, requires_grad=True)
 
     def __str__(self) -> str:
         return f"Param {self.name}: {super().__str__()}"
@@ -63,8 +63,8 @@ class Perceptron(Module):
         init_vals = self.uniform_initializer(
             -k_sqrt, k_sqrt, in_features+1)
 
-        self.wheight = [Tensor(np.array(init_vals[i]),
-                               name=f"w{i}") for i in range(self.in_features)]
+        self.wheight = [Parameter(np.array(init_vals[i]),
+                                  name=f"w{i}") for i in range(self.in_features)]
 
         self.bias = Tensor(np.array(init_vals[-1]), name="b")
 
@@ -115,7 +115,10 @@ class ReLu(Module):
         super().__init__("ReLu")
 
     def forward(self, x: Tensor):
-        return autograd.max(x, 0.)
+        # fast version
+        result = np.maximum(x.value, 0)
+        return Tensor(result, None, True, [x, Tensor(np.array(0., dtype=x.value.dtype))], "max")
+        # return autograd.max(x, 0.)
 
 
 class Tanh(Module):

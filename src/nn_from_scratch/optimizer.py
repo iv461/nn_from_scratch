@@ -2,6 +2,7 @@ import numpy as np
 from typing import Dict
 from nn_from_scratch.autograd import Tensor
 
+
 class Optimizer:
 
     def __init__(self, params: Dict[str, Tensor]) -> None:
@@ -38,6 +39,8 @@ class GradientDescent(Optimizer):
     def step(self, trace=False):
         for _, param in self.params.items():
             grad = param.grad
+            if grad is None:
+                raise Exception("You first have to call backward")
             grad_clip_val = 20000
             # cannot use out= as return arrays must be of ArrayType
             grad = np.clip(grad, a_min=-grad_clip_val, a_max=grad_clip_val)

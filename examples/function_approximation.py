@@ -1,3 +1,5 @@
+import time
+import yappi
 from typing import List, Callable, Any, Tuple
 import numpy as np
 import random
@@ -119,6 +121,7 @@ def train():
     print(f"Starting training...")
 
     for epoch_i in range(number_of_epochs):
+        yappi.start()
         for batch_i, (x_train, y_train) in enumerate(list(batcher((x_values, y_values), batch_size))):
             # TODO ID workaround, fix properly
             if id_counts is not None:
@@ -126,7 +129,9 @@ def train():
 
             # Manual adding up of the loss as the model is not vectorized
             # TODO vectorize model
+
             loss = None
+            start_fw = time.perf_counter()
             for x_i, y_true in zip(x_train, y_train):
                 y_pred = model.forward(x_i)
                 residual = (y_pred - y_true)
@@ -137,18 +142,28 @@ def train():
                 else:
                     loss += residual
 
+            end_fw = time.perf_counter()
+            print(f"Fw time: {(end_fw-start_fw)*1000.}ms")
+
             loss = loss * Tensor(np.array(1./batch_size), None, False, None)
 
             # TODO ID workaround, fix properly
             if id_counts is None:
                 id_counts = (Tensor.id_cnt, Node.id_cnt)
 
-            loss_values.append(loss.value)
             optimizer.zero_grad()
+            start_bw = time.perf_counter()
             loss.backward()
+            end_bw = time.perf_counter()
+            print(f"BW time: {(end_bw-start_bw)*1000.}ms")
+
+            loss_values.append(loss.value)
             # draw_computation_graph(loss)
             optimizer.step(trace=False)
 
+        yappi.get_func_stats().print_all()
+        yappi.get_thread_stats().print_all()
+        input()
         print(f"Epoch #{epoch_i} loss is: {float(loss_values[-1]):.4f}")
 
         if epoch_i > 0 and (epoch_i % 300) == 0:
