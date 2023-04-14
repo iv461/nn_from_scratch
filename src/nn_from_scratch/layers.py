@@ -115,10 +115,9 @@ class ReLu(Module):
         super().__init__("ReLu")
 
     def forward(self, x: Tensor):
-        # fast version
         result = np.maximum(x.value, 0)
         return Tensor(result, None, True, [x, Tensor(np.array(0., dtype=x.value.dtype))], "max")
-        # return autograd.max(x, 0.)
+        
 
 
 class Tanh(Module):
