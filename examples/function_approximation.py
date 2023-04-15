@@ -12,69 +12,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-matplotlib.use("Qt5Agg")
-# Raise error on numeric error like NaN, infinite etc.
-np.seterr(all="raise")
-random_gen = np.random.default_rng(seed=83754283547)
-random.seed(3475346502095)
-
-
 def f(x):
     """
     The function to approximate
     """
     return np.sin(x) + .3 * np.exp(x)
-
-
-def create_training_data(function_to_approximate: Callable[[Any], Any], interval: Tuple[float, float], sample_size: int):
-    x_values = np.linspace(*interval, num=sample_size)
-    y_values = np.vectorize(function_to_approximate)(x_values)
-    return x_values, y_values
-
-
-def vectorize_model(model):
-    def vectorized(x):
-        y_pred = []
-        for x_i in x:
-            y_pred.append(model.forward(x_i))
-        return y_pred
-    return vectorized
-
-
-def batcher(x_y_tuple: Tuple[List[Tensor], List[Tensor]], batch_size: int, shuffle=True):
-    x_values, y_values = x_y_tuple
-    for batch_i in range(len(x_y_tuple[0]) // batch_size):
-        zipped = list(zip(x_values, y_values))
-        if shuffle:
-            random.shuffle(zipped)
-        # Convert the train vector of from shape (N,) to (N, 1), this is the correct batch shape
-        x_train = [Tensor(np.array(x_i).reshape(1), f"x_{i}",
-                          requires_grad=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
-        # reshape needed for check in local grad if both are scalar
-        y_train = [Tensor(np.array(y_i).reshape(1), f"y_{i}",
-                          requires_grad=False) for i, (x_i, y_i) in enumerate(zipped[batch_i*batch_size: (batch_i+1)*batch_size])]
-        yield x_train, y_train
-
-
-def plot_model_vs_function(vectorized_model, x_t: List[Tensor], y_t: List[Tensor], interval: Tuple[float, float]):
-    x_scalars = [float(t.value) for t in x_t]
-    y_scalars = [float(t.value) for t in y_t]
-    plt.plot(x_scalars, y_scalars, label="function")
-    y_pred = vectorized_model(x_t)
-    y_pred_scalar = [float(t.value) for t in y_pred]
-    plt.plot(x_scalars, y_pred_scalar, label="model")
-    plt.title("Function vs model")
-    plt.legend()
-    plt.xlim(interval)
-    plt.show()
-
-
-def plot_loss(loss_values: List[float]):
-    plt.plot(np.arange(len(loss_values)), loss_values)
-    plt.title("Loss")
-    plt.ylabel("MSE-loss")
-    plt.xlabel("Iterations")
-    plt.show()
 
 
 def train():
