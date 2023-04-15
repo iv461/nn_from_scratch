@@ -123,24 +123,23 @@ def nn_test():
 
 
 def compare_ag_with_torch(data: List[List[np.ndarray]], f_torch, f_ag, check_grad=True):
-    torch_outputs = []
-    ag_outputs = []
+    inputs_ts = []
+    outputs = []
     for inputs in data:
         torch_x = [torch.tensor(
             x, device="cpu", requires_grad=check_grad)for x in inputs]
         ag_x = [autograd.Tensor(x, requires_grad=check_grad) for x in inputs]
         torch_y = f_torch(*torch_x)
         ag_y = f_ag(*ag_x)
-        torch_outputs.append(torch_y)
-        ag_outputs.append(ag_y)
+        inputs_ts.append((torch_x, ag_x))
+        outputs.append((torch_y, ag_y))
         if check_grad:
             torch_y.backward()
             ag_y.backward()
-
     assert all([np.allclose(p_ag.value, p_torch.detach().numpy())
-               for p_torch, p_ag in zip(torch_outputs, ag_outputs)])
-    assert all([np.allclose(p_torch.grad.numpy(), p_ag.grad)
-               for p_torch, p_ag in zip(torch_outputs, ag_outputs)])
+               for p_torch, p_ag in outputs])
+    assert all([np.allclose(input_torch.grad.numpy(), input_ag.grad)
+                for inputs_torch, inputs_ag in inputs_ts for input_torch, input_ag in zip(inputs_torch, inputs_ag)])
 
 
 def relu_test():
@@ -157,4 +156,4 @@ def relu_test():
 matrix_vector_multiplication_test()
 matrix_multiplication_test()
 nn_test()
-# relu_test()
+relu_test()
