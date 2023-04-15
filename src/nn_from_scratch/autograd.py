@@ -131,13 +131,13 @@ class Tensor(Node):
 
         if self.operation == "+":
             assert both_scalar_or_same_shape
-            return {op1.id: grad_output, op2.id: grad_output}
+            # return {op1.id: grad_output, op2.id: grad_output}
             self.local_grad = {
                 parent_node.id: np.ones(op1.value.shape) for parent_node in self.parents}
 
         elif self.operation == "-":
             assert both_scalar_or_same_shape
-            return {op1.id: grad_output, op2.id: -grad_output}
+            # return {op1.id: grad_output, op2.id: -grad_output}
             self.local_grad = {
                 self.parents[0].id: np.ones(op1.value.shape),
                 self.parents[1].id: -np.ones(op1.value.shape)}
