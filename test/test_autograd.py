@@ -6,7 +6,7 @@ from nn_from_scratch import autograd, layers
 np.random.default_rng(seed=587346287)
 
 
-def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, check_grad=True, use_single_precision=True):
+def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, check_grad=True, use_single_precision=True, sum_result=True):
     """
     Compares the outputs of PyTorch and nn_from_scratch's for equality with an assert.
 
@@ -16,6 +16,7 @@ def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, chec
         f_ag (_type_): The PyTorch function to call
         check_grad (bool, optional): If true, the backward pass will be executed and the gradients checked for equality as well. Defaults to True.
         use_single_precision (bool, optional): If true, the passed numpy-arrays will be converted to single-precision float. Defaults to True.
+        sum_result (bool, optional): If true, the result will be summed to obtain a scalar before performing the backward-pass This is useful in combination with gradient checking. Defaults to True.
     """
     inputs_ts = []
     outputs = []
@@ -32,13 +33,17 @@ def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, chec
         ag_y = f_ag(*ag_x)
         inputs_ts.append((torch_x, ag_x))
         outputs.append((torch_y, ag_y))
+        if sum_result:
+            torch_y = torch.sum(torch_y)
+            ag_y = autograd.sum(ag_y)
         if check_grad:
             torch_y.backward()
             ag_y.backward()
     assert all([np.allclose(p_ag.value, p_torch.detach().numpy())
                for p_torch, p_ag in outputs])
-    assert all([np.allclose(input_torch.grad.numpy(), input_ag.grad)
-                for inputs_torch, inputs_ag in inputs_ts for input_torch, input_ag in zip(inputs_torch, inputs_ag)])
+    if check_grad:
+        assert all([np.allclose(input_torch.grad.numpy(), input_ag.grad)
+                    for inputs_torch, inputs_ag in inputs_ts for input_torch, input_ag in zip(inputs_torch, inputs_ag)])
 
 
 def matrix_multiplication(A, x, b):
@@ -59,10 +64,8 @@ def matrix_vector_multiplication_test():
     x = np.arange(4)
     m = 3 * np.arange(3)
 
-    def f_torch(*args): return torch.sum(matrix_multiplication(*args))
-    def f_ag(*args): return autograd.sum(matrix_multiplication(*args))
-
-    compare_ag_with_torch([[A, x, m]], f_torch, f_ag, check_grad=True)
+    compare_ag_with_torch([[A, x, m]], matrix_multiplication,
+                          matrix_multiplication, check_grad=True)
 
 
 def matrix_multiplication_test():
@@ -75,9 +78,8 @@ def matrix_multiplication_test():
 
     print(f"A:\n{A}\nB:{B}\nM:\n{M}")
 
-    def f_torch(*args): return torch.sum(matrix_multiplication(*args))
-    def f_ag(*args): return autograd.sum(matrix_multiplication(*args))
-    compare_ag_with_torch([[A, B, M]], f_torch, f_ag, check_grad=True)
+    compare_ag_with_torch([[A, B, M]], matrix_multiplication,
+                          matrix_multiplication, check_grad=True)
 
 
 def nn_test():
@@ -96,18 +98,35 @@ def nn_test():
                           two_layer_nn, two_layer_nn, check_grad=True)
 
 
+def batched_nn_test():
+    intermediate_feat = 20
+    batch_size = 30
+    x = np.random.rand(batch_size, 10, 1)
+
+    w1 = np.random.rand(intermediate_feat, 10)
+    b1 = np.random.rand(intermediate_feat)
+    w2 = np.random.rand(intermediate_feat,
+                        intermediate_feat)
+    b2 = np.random.rand(intermediate_feat)
+    w3 = np.random.rand(1, intermediate_feat)
+    b3 = np.random.rand(1)
+
+    compare_ag_with_torch([[w1, b1, w2, b2, w3, b3, x]],
+                          two_layer_nn, two_layer_nn, check_grad=True)
+
+
 def relu_test():
     x = np.random.rand(1)
     x2 = np.random.rand(10, 1)
     relu = layers.ReLu()
     relu_torch = torch.nn.ReLU()
-    # Sum is needed to have scalar-output for backward
-    def f_ag(x): return autograd.sum(relu.forward(x))
-    def f_torch(x): return torch.sum(relu_torch.forward(x))
-    compare_ag_with_torch([[x], [x2]], f_torch, f_ag, check_grad=True)
+
+    compare_ag_with_torch([[x], [x2]], relu_torch.forward,
+                          relu.forward, check_grad=True)
 
 
 matrix_vector_multiplication_test()
 matrix_multiplication_test()
 nn_test()
 relu_test()
+batched_nn_test()

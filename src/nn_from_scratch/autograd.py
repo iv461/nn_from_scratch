@@ -130,17 +130,13 @@ class Tensor(Node):
             op1.value.shape == op2.value.shape)
 
         if self.operation == "+":
-            assert both_scalar_or_same_shape
-            # return {op1.id: grad_output, op2.id: grad_output}
             self.local_grad = {
-                parent_node.id: np.ones(op1.value.shape) for parent_node in self.parents}
+                parent_node.id: np.ones(parent_node.value.shape) for parent_node in self.parents}
 
         elif self.operation == "-":
-            assert both_scalar_or_same_shape
-            # return {op1.id: grad_output, op2.id: -grad_output}
             self.local_grad = {
-                self.parents[0].id: np.ones(op1.value.shape),
-                self.parents[1].id: -np.ones(op1.value.shape)}
+                op1.id: np.ones(op1.value.shape),
+                op2.id: -np.ones(op2.value.shape)}
 
         elif self.operation == "*":
             # Assert either both scalar, both vectors of same shape, or matrix-vector multiplication (Ax where A \in R^(n x m) and x \in R^m )
@@ -164,7 +160,9 @@ class Tensor(Node):
             else:
                 raise Exception("Invalid multiplication")
         elif self.operation == "@":
-            if op1.value.ndim == 2 and op2.value.ndim == 1:
+            op1_dim = op1.value.ndim if op1.value.ndim < 3 else op1.value.ndim - 1
+            op2_dim = op2.value.ndim if op2.value.ndim < 3 else op2.value.ndim - 1
+            if (op1_dim - 1) == op2_dim:
                 # Matrix-vector case, Ax, op1 is A and op2 is x
                 # Partial derivative w.r.t to the Matrix is the vector repeated as rows of the matrix
                 A = op1.value
@@ -183,18 +181,22 @@ class Tensor(Node):
 
                 return {op1.id: d_f_dA,
                         op2.id: d_f_dx}
-            elif op1.value.ndim == 2 and op2.value.ndim == 2:
+            elif op1_dim == op2_dim:
                 # matrix-matrix case
                 A = op1.value
                 B = op2.value
-                df_dA = grad_output @ B.T
-                df_dB = A.T @ grad_output
+                # We use np.swapaxes(B, 0, 1) instead of B.T as .T is ambigous for multi-dim arrays, and here needed for batch-sized inputs, see also:
+
+                df_dA = grad_output @ np.swapaxes(B, -1, -2)
+                df_dB = np.swapaxes(A, -1, -2) @ grad_output
                 self.local_grad = {
                     op1.id: B,
                     op2.id: A}
 
                 return {op1.id: df_dA,
                         op2.id: df_dB}
+            else:
+                raise Exception("Unknown matrix backward")
 
         elif self.operation == "/":
             assert both_scalar_or_same_shape

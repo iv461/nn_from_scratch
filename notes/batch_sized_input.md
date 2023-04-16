@@ -128,3 +128,10 @@ array([[  5,  14,  23,  32],
        [ 41, 158, 275, 392]])
 
 ```
+
+
+# new derivation:
+
+First, we need to remove the assert for + and minus for the same shape, as now different shapes can be summed element-wise because of broadcasting. Now also the partial derivatives are ones of the respective operands shapes
+
+Now, we need also to change the transposition, and replace .T with np.swapaxes(B, -1, -2), as for more than 2d arrays, numpy's .T does not give the expected result.
