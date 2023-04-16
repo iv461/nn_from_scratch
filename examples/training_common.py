@@ -123,5 +123,5 @@ class Trainer:
             print(
                 f"Epoch #{epoch_i} loss is: {float(self.loss_values[-1]):.4f}")
 
-            if epoch_i > 0 and (epoch_i % 300) == 0 and self.in_between_epochs is not None:
+            if epoch_i > 0 and (epoch_i % 1000) == 0 and self.in_between_epochs is not None:
                 self.in_between_epochs()

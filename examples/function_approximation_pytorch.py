@@ -102,7 +102,11 @@ def train_loop(dataloader, model, loss_fn, optimizer, trace=False):
         if trace:
             print(f"Grad after grad calc:\n")
             for name, param in model.named_parameters():
-                print(f"Grad:{param.grad}")
+                # print(f"Grad:{param.grad}")
+                grad_np = param.grad.numpy()
+                non_zero_cnt = np.count_nonzero(
+                    grad_np) / grad_np.size
+                print(f"Non-zero amount: {non_zero_cnt:.2f}")
 
         optimizer.step()
 
@@ -136,9 +140,10 @@ def train():
     mse_loss = nn.MSELoss()
 
     loss_vals = []
-    epochs = 2000
+    epochs = 10000
     for epoch_i in range(epochs):
-        loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
+        loss_vals += train_loop(dataloader, model,
+                                mse_loss, optimizer)
 
         print(f"Epoch #{epoch_i} loss is: {loss_vals[-1]}")
         if (epoch_i % 500) == 0:

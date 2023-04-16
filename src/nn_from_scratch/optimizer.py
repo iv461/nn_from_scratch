@@ -26,24 +26,26 @@ class GradientDescent(Optimizer):
     Generic gradient descent, named in torch SGD
     """
 
-    def __init__(self, params: Dict[str, Tensor], lr: float):
+    def __init__(self, params: Dict[str, Tensor], lr: float, clip_grad=False):
         """
         Construct gradient descent
         Args:
-            params (Dict[str, Tensor]): parameters dict
+            params (Dict[str, Tensor]): The parameters of the model to optimize
             lr (float): the learning rate
         """
         super().__init__(params)
         self.lr = lr
+        self.clip_grad = clip_grad
 
     def step(self, trace=False):
         for _, param in self.params.items():
             grad = param.grad
             if grad is None:
                 raise Exception("You first have to call backward")
-            grad_clip_val = 20000
-            # cannot use out= as return arrays must be of ArrayType
-            grad = np.clip(grad, a_min=-grad_clip_val, a_max=grad_clip_val)
+            if self.clip_grad:
+                grad_clip_val = 20000
+                # cannot use out= as return arrays must be of ArrayType
+                grad = np.clip(grad, a_min=-grad_clip_val, a_max=grad_clip_val)
             if trace:
                 print(f"[Optimizer] Grad is:\n{grad}")
                 print(f"[Optimizer] Old Parameters are:\n{param.value}")
