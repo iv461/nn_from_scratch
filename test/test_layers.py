@@ -1,7 +1,7 @@
 
 
 import numpy as np
-from nn_from_scratch.layers import Perceptron, Linear, Sequential, ReLu
+from nn_from_scratch.layers import Perceptron, Linear, Sequential, ReLU
 from nn_from_scratch.autograd import Tensor
 from nn_from_scratch.graph_drawing import build_and_draw_computation_graph
 import time
@@ -30,7 +30,7 @@ def test_linear():
     l = Linear(in_features=in_dim, out_features=2)
 
     print(f"Linear layer: w: {l.weight}, b: {l.bias}")
-    params = l.get_parameters()
+    params = l.named_parameters()
     print(f"params: {params}")
 
     x_t = Tensor(np.arange(in_dim), "x", requires_grad=False)
@@ -50,12 +50,12 @@ def test_sequential_model():
     intemediate_dim = 512
     nn_model = Sequential([
         Linear(in_dim, intemediate_dim),
-        ReLu(),
+        ReLU(),
         Linear(intemediate_dim, intemediate_dim),
-        ReLu(),
+        ReLU(),
         Linear(intemediate_dim, out_dim)
     ])
-    nn_params = nn_model.get_parameters()
+    nn_params = nn_model.named_parameters()
     print(f"NN params: {nn_params}")
 
     x_t = Tensor(np.arange(in_dim).reshape(

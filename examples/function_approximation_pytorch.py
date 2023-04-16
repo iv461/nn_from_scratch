@@ -84,10 +84,6 @@ def train_loop(dataloader, model, loss_fn, optimizer, trace=False):
     losses = []
     for batch_i, batch in enumerate(dataloader):
 
-        # if torch.cuda.is_available():
-
-        #batch = batch.cuda()
-
         X, y = batch
         # Compute prediction and loss
 
@@ -114,7 +110,7 @@ def train_loop(dataloader, model, loss_fn, optimizer, trace=False):
             print(f"Params after update:\n")
             for name, param in model.named_parameters():
                 print(f"Param {name}: {param}")
-
+        loss: Tensor
         losses.append(loss.item())
     return losses
 
@@ -145,7 +141,7 @@ def train():
         loss_vals += train_loop(dataloader, model, mse_loss, optimizer)
 
         print(f"Epoch #{epoch_i} loss is: {loss_vals[-1]}")
-        if (epoch_i % 5000) == 0:
+        if (epoch_i % 500) == 0:
 
             plot_model_vs_function(model, dataset.x_vals,
                                    dataset.y_vals, interval)

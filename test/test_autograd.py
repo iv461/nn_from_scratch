@@ -132,7 +132,7 @@ def batched_nn_test():
 def relu_test():
     x = np.random.rand(1)
     x2 = np.random.rand(10, 1)
-    relu = layers.ReLu()
+    relu = layers.ReLU()
     relu_torch = torch.nn.ReLU()
 
     compare_ag_with_torch([[x], [x2]], relu_torch.forward,

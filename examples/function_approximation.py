@@ -1,6 +1,6 @@
 
 import numpy as np
-from nn_from_scratch.layers import Linear, ReLu, Sequential, Tensor
+from nn_from_scratch.layers import Linear, ReLU, Sequential, Tensor
 from nn_from_scratch.losses import mse_loss
 from training_common import create_training_data, plot_loss, plot_model_vs_function, Trainer
 
@@ -25,10 +25,10 @@ def train():
     number_of_intermediate_features = 30
     model = Sequential([
         Linear(in_features=1, out_features=number_of_intermediate_features),
-        ReLu(),
+        ReLU(),
         Linear(in_features=number_of_intermediate_features,
                out_features=number_of_intermediate_features),
-        ReLu(),
+        ReLU(),
         Linear(in_features=number_of_intermediate_features, out_features=1),
     ])
 
@@ -47,7 +47,7 @@ def train():
             model, x_orig_t, y_orig_t, interval)
 
     trainer = Trainer((x_orig_t, y_orig_t), model, mse_loss,
-                      8e-4, batch_size, number_of_epochs, plot_model, profile=False)
+                      1e-3, batch_size, number_of_epochs, plot_model, profile=False)
 
     trainer.fit()
     print(f"Finished training, final model: Close window to show loss curves")

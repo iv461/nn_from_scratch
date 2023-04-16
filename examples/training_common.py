@@ -24,15 +24,15 @@ def create_training_data(function_to_approximate: Callable[[Any], Any], interval
 
 
 def batcher(x: Tensor, y: Tensor, batch_size: int, shuffle=True):
-    assert len(x.value) == len(y.value)
+    xs, ys = x.value, y.value
+    assert len(xs) == len(ys)
+    if shuffle:
+        random_indices = np.random.permutation(len(xs))
+        xs = np.take(xs, random_indices, axis=0)
+        ys = np.take(ys, random_indices, axis=0)
     for batch_i in range(len(x.value) // batch_size):
-        x_batch = x.value[batch_i*batch_size: (batch_i+1)*batch_size]
-        y_batch = y.value[batch_i*batch_size: (batch_i+1)*batch_size]
-
-        if shuffle:
-            random_indices = np.random.permutation(batch_size)
-            x_batch = np.take(x_batch, random_indices, axis=0)
-            y_batch = np.take(y_batch, random_indices, axis=0)
+        x_batch = xs[batch_i*batch_size: (batch_i+1)*batch_size]
+        y_batch = ys[batch_i*batch_size: (batch_i+1)*batch_size]
         x_train = Tensor(x_batch, f"x_b{batch_i}")
         y_train = Tensor(y_batch, f"x_b{batch_i}")
         yield x_train, y_train
@@ -72,7 +72,7 @@ class Trainer:
     plot_computation_graph: bool = False
 
     def fit(self, profile=False):
-        params = self.model.get_parameters()
+        params = self.model.named_parameters()
         params_str = ', '.join(map(str, params.values()))
         print(f"Params are:\n{params_str}")
         optimizer = GradientDescent(params, lr=self.lr)

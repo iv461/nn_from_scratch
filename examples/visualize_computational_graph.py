@@ -5,7 +5,7 @@ from nn_from_scratch.graph_drawing import build_and_draw_computation_graph
 
 input_dimensions = 3
 neural_net = Linear(in_features=input_dimensions, out_features=2)
-params = neural_net.get_parameters()
+params = neural_net.named_parameters()
 
 x_input = Tensor(np.arange(input_dimensions))
 y_output = neural_net.forward(x_input)

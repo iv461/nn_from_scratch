@@ -31,7 +31,7 @@ class Module:
     def __init__(self, name):
         self.name = name
 
-    def get_parameters(self) -> Dict[int, Parameter]:
+    def named_parameters(self) -> Dict[int, Parameter]:
         return {v.id: v for k, v in self.__dict__.items() if isinstance(v, Parameter)}
 
     def forward(self, x: Tensor) -> Tensor:
@@ -110,7 +110,7 @@ class Linear(Module):
         return self.weight @ x + self.bias
 
 
-class ReLu(Module):
+class ReLU(Module):
 
     def __init__(self):
         super().__init__("ReLu")
@@ -138,8 +138,8 @@ class Sequential(Module):
         super().__init__("Sequential")
         self.layers = layers
 
-    def get_parameters(self):
-        return {param_name: param for layer in self.layers for param_name, param in layer.get_parameters().items()}
+    def named_parameters(self):
+        return {param_name: param for layer in self.layers for param_name, param in layer.named_parameters().items()}
 
     def forward(self, x: Tensor):
         result = x
