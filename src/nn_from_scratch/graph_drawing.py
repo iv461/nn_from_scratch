@@ -1,3 +1,5 @@
+from typing import Union
+import numpy as np
 import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
 import matplotlib.pyplot as plt
@@ -30,9 +32,9 @@ def build_networkx_graph(root_node: Tensor) -> nx.DiGraph:
 def build_and_draw_computation_graph(root_tensor: Tensor, size=1.):
     """
     Draw the computation graph for a given root tensor and opens a window.
-
+    Can be called before or after the backward pass (calling backward()). If gradients are available, they will be plotted as well.
     Args:
-        root_tensor (Tensor): the root tensor 
+        root_tensor (Tensor): the root tensor which is the result of a computation. Can also be called on tensors which do not result from a computation, in this case only one node will be plotted.
         size (_type_, optional): Scale. Defaults to 1..
 
     Returns:
@@ -76,7 +78,22 @@ def get_tensor_from_id(nx_graph, node_id):
     return nx_graph.nodes[node_id]["ag_tensor"]
 
 
-def draw_edge_result_labels(nx_graph, node_positions, size):
+def value_to_string(value: Union[np.ndarray, float, None], max_tensor_size_to_print):
+    if isinstance(value, float):
+        value_string = f"{value}:.2f"
+    elif isinstance(value, np.ndarray):
+        # Do not plot big matrices
+        if value.size > max_tensor_size_to_print:
+            value_string = f"Shape {value.shape}"
+        else:
+            value_string = str(value)
+    else:
+        value_string = "Unknown"
+        #raise Exception(f"Unknown type of gradient: {type(value)}")
+    return value_string
+
+
+def draw_edge_result_labels(nx_graph, node_positions, size, max_tensor_size_to_print=15):
 
     def get_edge_label(from_node: Tensor, to_node: Tensor):
         from_node, to_node = get_tensor_from_id(nx_graph,
@@ -84,10 +101,11 @@ def draw_edge_result_labels(nx_graph, node_positions, size):
         # Enable drawing before the backward pass
         if to_node.local_grad is not None:
             partial_d = to_node.local_grad[from_node.id]
-            partial_d_str = "%.2f" % partial_d if isinstance(
-                partial_d, float) else str(partial_d)
         else:
-            partial_d_str = "Unknown"
+            partial_d = None
+        partial_d_str = value_to_string(
+            partial_d, max_tensor_size_to_print)
+
         return f"d{to_node.name}/{from_node.name} = " + partial_d_str
 
     result_labels = {(from_node, to_node): get_edge_label(from_node, to_node)
@@ -98,11 +116,13 @@ def draw_edge_result_labels(nx_graph, node_positions, size):
                                  rotate=False)
 
 
-def draw_node_result_labels(nx_graph, node_positions, size):
+def draw_node_result_labels(nx_graph, node_positions, size, max_tensor_size_to_print=15):
     def op_node_label(node: Tensor):
-        value_str = "%.2f" % node.value if isinstance(
-            node.value, float) else str(node.value)
-        return f"{node.name}={value_str}, grad: {node.grad}"
+        value_str = value_to_string(
+            node.value, max_tensor_size_to_print)
+        grad_str = value_to_string(
+            node.grad, max_tensor_size_to_print)
+        return f"{node.name}={value_str}, grad: {grad_str}"
     result_labels = {node: op_node_label(attributes["ag_tensor"])
                      for node, attributes in nx_graph.nodes(data=True)}
 

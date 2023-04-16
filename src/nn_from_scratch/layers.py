@@ -102,8 +102,9 @@ class Linear(Module):
         weights_tensor_shape = (out_features, in_features)
         self.weight = Parameter("w", self.uniform_initializer(
             -k_sqrt, k_sqrt, weights_tensor_shape))
+        # We need to create a 2d array for the bias vector, a column vector, such that the broadcasting works correctly for batch-sized inputs
         self.bias = Parameter("b", self.uniform_initializer(-k_sqrt,
-                                                            k_sqrt, out_features))
+                                                            k_sqrt, (out_features, 1)))
 
     def forward(self, x: Tensor):
         return self.weight @ x + self.bias
@@ -117,7 +118,6 @@ class ReLu(Module):
     def forward(self, x: Tensor):
         result = np.maximum(x.value, 0)
         return Tensor(result, None, True, [x, Tensor(np.array(0., dtype=x.value.dtype))], "max")
-        
 
 
 class Tanh(Module):

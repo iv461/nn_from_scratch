@@ -1,3 +1,4 @@
+from nn_from_scratch.graph_drawing import build_and_draw_computation_graph
 from typing import List
 import numpy as np
 import torch
@@ -6,7 +7,7 @@ from nn_from_scratch import autograd, layers
 np.random.default_rng(seed=587346287)
 
 
-def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, check_grad=True, use_single_precision=True, sum_result=True):
+def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, check_grad=True, use_single_precision=True, sum_result=True, plot_graph=False):
     """
     Compares the outputs of PyTorch and nn_from_scratch's for equality with an assert.
 
@@ -39,6 +40,8 @@ def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, chec
         if check_grad:
             torch_y.backward()
             ag_y.backward()
+            if plot_graph:
+                build_and_draw_computation_graph(ag_y)
     assert all([np.allclose(p_ag.value, p_torch.detach().numpy())
                for p_torch, p_ag in outputs])
     if check_grad:
@@ -52,7 +55,7 @@ def matrix_multiplication(A, x, b):
     return r
 
 
-def two_layer_nn(w1, b1, w2, b2, w3, b3, x):
+def three_layer_nn(x, w1, b1, w2, b2, w3, b3):
     res = w1 @ x + b1
     res = w2 @ res + b2
     res = w3 @ res + b3
@@ -95,7 +98,7 @@ def nn_test():
     b3 = np.random.rand(1)
 
     compare_ag_with_torch([[w1, b1, w2, b2, w3, b3, x]],
-                          two_layer_nn, two_layer_nn, check_grad=True)
+                          three_layer_nn, three_layer_nn, check_grad=True)
 
 
 def batched_nn_test():
@@ -104,15 +107,17 @@ def batched_nn_test():
     x = np.random.rand(batch_size, 10, 1)
 
     w1 = np.random.rand(intermediate_feat, 10)
-    b1 = np.random.rand(intermediate_feat)
+    b1 = np.random.rand(intermediate_feat, 1)
     w2 = np.random.rand(intermediate_feat,
                         intermediate_feat)
-    b2 = np.random.rand(intermediate_feat)
+    b2 = np.random.rand(intermediate_feat, 1)
     w3 = np.random.rand(1, intermediate_feat)
     b3 = np.random.rand(1)
 
-    compare_ag_with_torch([[w1, b1, w2, b2, w3, b3, x]],
-                          two_layer_nn, two_layer_nn, check_grad=True)
+    # We let also calculate the derivatives wrt. to the input to check whether we can calculate the gradient here correctly as well
+    # Otherwise, we can apply partially x
+    compare_ag_with_torch([[x, w1, b1, w2, b2, w3, b3]],
+                          three_layer_nn, three_layer_nn, check_grad=True)
 
 
 def relu_test():

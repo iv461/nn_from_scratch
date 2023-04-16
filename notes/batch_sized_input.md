@@ -18,21 +18,6 @@ For this, we will use numpy's [broadcasting]() as we do not have to loop in Pyth
 
 In Numpy, the broadcasting rules allow us automatically for example to add a scalar value element-wise to a vector, an operation not allowed by linear algebra:
 
-``` Python
->>> c = np.array(5)
->>> w = np.arange(10)
->>> c
-array(5)
->>> c.shape 
-()
->>> w
-array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-
->>> c + w # broadcasting happens here
-array([ 5,  6,  7,  8,  9, 10, 11, 12, 13, 14])
-
-```
-
 Because of broadcasting, our addition and subtraction methods already work for batch-sized inputs, we don't have to modify them.
 
 ## Multiplication 
@@ -41,97 +26,19 @@ For the multiplication to work, we have to modify it slightly, first the scalar-
 If we a batch-sized tensor with scalars and want to multiply  it with a weights-vector, we have to a `(batch_size, 1)`-shaped tensor of the training data 
 and a `(vector_size,)`-shaped tensor of weights for the broadcasting to work: 
 
-```Python
->>> w
-array([0, 1, 2])
->>> w.shape
-(3,)
->>> x
-array([[0],
-       [1],
-       [2],
-       [3],
-       [4]])
->>> x.shape
-(5, 1)
->>> x * w
-array([[0, 0, 0],
-       [0, 1, 2],
-       [0, 2, 4],
-       [0, 3, 6],
-       [0, 4, 8]])
-```
-Here, we do a scalar-vector multiplication between the vector w and the scalars in the training-data tensor which contains 5 training examples and so we do 5 vector-scalar multiplications.
-
-# Matix mult
-
-Multiplication between batch of scalars and vector: 
-
-```Python
-np.einsum('l,ia->il', w, x)
-```
-
-Multiplication between batch of scalars and matrix: 
-
-```Python
-np.einsum('kl,ia->ikl', w, x)
-```
-
-Multiplication between batch of vectors and vector, vector dot product: 
-
-```Python
-np.einsum('l,il->i', w, x)
-```
-
-Example:
-
-```Python
->>> x = np.arange(15).reshape(5, 3)
->>> x
-array([[ 0,  1,  2],
-       [ 3,  4,  5],
-       [ 6,  7,  8],
-       [ 9, 10, 11],
-       [12, 13, 14]])
-
->>> w = np.arange(3) + 1
->>> w
-array([1, 2, 3])
-
->>> np.einsum('l,il->i', w, x)
-array([ 8, 26, 44, 62, 80])
-```
-
-Multiplication between batch of vectors and a matrix, vector matrix multiplication: 
-
-```Python
-np.einsum('ij,lj->li', w, x)
-```
-Example: 
-```Python
->>> w
-array([[ 0,  1,  2],
-       [ 3,  4,  5],
-       [ 6,  7,  8],
-       [ 9, 10, 11]])
->>> x
-array([[ 0,  1,  2],
-       [ 3,  4,  5],
-       [ 6,  7,  8],
-       [ 9, 10, 11],
-       [12, 13, 14]])
->>> np.einsum('ij,lj->li', w, x)
-array([[  5,  14,  23,  32],
-       [ 14,  50,  86, 122],
-       [ 23,  86, 149, 212],
-       [ 32, 122, 212, 302],
-       [ 41, 158, 275, 392]])
-
-```
-
-
 # new derivation:
 
 First, we need to remove the assert for + and minus for the same shape, as now different shapes can be summed element-wise because of broadcasting. Now also the partial derivatives are ones of the respective operands shapes
 
 Now, we need also to change the transposition, and replace .T with np.swapaxes(B, -1, -2), as for more than 2d arrays, numpy's .T does not give the expected result.
+
+Also, in the linear layer we notice a bug in the summing with the bias vector: 
+
+It has to be of shape (feature_size, 1) instead of (feature_size,)
+
+Now, the last modification we have to make is to sum over the batch axis and reshape the gradient tensor to match the value of which we are calculating the shape: 
+
+![](../images/nn_batched_with_shape_mismatch_bug.png)
+TODO 
+
+

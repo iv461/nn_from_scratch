@@ -116,6 +116,21 @@ class Tensor(Node):
 
     def __str__(self) -> str: return f"{self.value}, grad: {self.grad}"
 
+    def _sum_over_batch_axis_if_needed(self, parents, accumulated_gradient):
+        """
+        For processing batches, we have to sum the gradients over the batch-dimension.
+
+        Args:
+            parents (_type_): _description_
+            accumulated_gradient (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        # Hint we use here < instead of comparing if we have one dimension more to catch the case where we have (30, 1, 1) and (1,) for example.
+        # For this exact case we reshape also, to remove unnesecary 1 dim axes. Squeeze is not enough, a sometimes, the bias in the linear layer e.g. is (1, 20), in this case we do not want to squeeze this axis, we actually want the grad shape to match exactly the value shape
+        return {op_id: np.reshape(np.sum(acc_grad, axis=0), parents[op_id].value.shape) if parents[op_id].value.ndim < acc_grad.ndim else acc_grad for op_id, acc_grad in accumulated_gradient.items()}
+
     def _backprop_binary_ops(self, grad_output: np.ndarray):
         """
         Calculates the "local" partial derivatives of this function, for common binary operations like +, -, * etc.
@@ -124,6 +139,8 @@ class Tensor(Node):
         assert len(self.parents) == 2
 
         op1, op2 = self.parents[0], self.parents[1]
+        # TODO fix this, this is needed for sum batch function. Also, actually we do not need it as the dict is ordered in CPython
+        parents_dict = {op1.id: op1, op2.id: op2}
         both_scalar = (op1.value.ndim == 0 or op1.value.shape == (1, )) and (
             op2.value.ndim == 0 or op2.value.shape == (1, ))
         both_scalar_or_same_shape = both_scalar or (
@@ -179,8 +196,8 @@ class Tensor(Node):
                     self.parents[0].id: x,
                     self.parents[1].id: A}
 
-                return {op1.id: d_f_dA,
-                        op2.id: d_f_dx}
+                return self._sum_over_batch_axis_if_needed(parents_dict, {op1.id: d_f_dA,
+                                                                          op2.id: d_f_dx})
             elif op1_dim == op2_dim:
                 # matrix-matrix case
                 A = op1.value
@@ -193,8 +210,8 @@ class Tensor(Node):
                     op1.id: B,
                     op2.id: A}
 
-                return {op1.id: df_dA,
-                        op2.id: df_dB}
+                return self._sum_over_batch_axis_if_needed(parents_dict, {op1.id: df_dA,
+                                                                          op2.id: df_dB})
             else:
                 raise Exception("Unknown matrix backward")
 
@@ -218,8 +235,10 @@ class Tensor(Node):
         else:
             raise Exception(f"Binary op {self.operation} not implemented")
 
-        return {op1.id: self.local_grad[op1.id]*grad_output,
-                op2.id: self.local_grad[op2.id]*grad_output}
+        acc_grad = {op1.id: self.local_grad[op1.id]*grad_output,
+                    op2.id: self.local_grad[op2.id]*grad_output}
+        acc_grad = self._sum_over_batch_axis_if_needed(parents_dict, acc_grad)
+        return acc_grad
 
     def _backprop_unary_ops(self, grad_tensor: np.ndarray):
         """
@@ -247,7 +266,11 @@ class Tensor(Node):
                 op1.id: normalizer * np.ones(op1.value.shape)
             }
 
-        return {op1.id: self.local_grad[op1.id]*grad_tensor}
+        # TODO fix this, this is needed for sum batch function. Also, actually we do not need it as the dict is ordered in CPython
+        parents_dict = {op1.id: op1}
+        acc_grad = {op1.id: self.local_grad[op1.id]*grad_tensor}
+        acc_grad = self._sum_over_batch_axis_if_needed(parents_dict, acc_grad)
+        return acc_grad
 
     def _backprop(self, grad_tensor: np.ndarray):
         """
