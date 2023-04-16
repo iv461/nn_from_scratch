@@ -151,9 +151,10 @@ class Tensor(Node):
             # TODO hack which saves compute but is actually here as we have not generalized summing over all broadcast axes yet: Don't do anything if we will not need the grad anyways
             if not parents[op_id].requires_grad:
                 new_acc_grad = acc_grad
-            elif parents[op_id].value.ndim < acc_grad.ndim:
+            # TODO hacky check, assumes that without the batch dimension we have only a matrix
+            elif acc_grad.ndim == 3 and parents[op_id].value.ndim < 3:
                 new_acc_grad = np.reshape(
-                    np.sum(acc_grad, axis=0), np.atleast_1d(parents[op_id].value).shape)
+                    np.sum(acc_grad, axis=0), parents[op_id].value.shape)
             else:
                 new_acc_grad = acc_grad
 

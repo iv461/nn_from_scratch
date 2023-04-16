@@ -58,7 +58,8 @@ def test_sequential_model():
     nn_params = nn_model.get_parameters()
     print(f"NN params: {nn_params}")
 
-    x_t = Tensor(np.arange(in_dim), "x", requires_grad=False)
+    x_t = Tensor(np.arange(in_dim).reshape(
+        in_dim, 1), "x", requires_grad=False)
 
     start_ = time.perf_counter()
     res = nn_model.forward(x_t)
@@ -75,6 +76,6 @@ def test_sequential_model():
     # TODO test something
 
 
-#test_perceptron()
+# test_perceptron()
 test_linear()
 test_sequential_model()
