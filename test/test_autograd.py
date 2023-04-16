@@ -39,9 +39,9 @@ def compare_ag_with_torch(test_data: List[List[np.ndarray]], f_torch, f_ag, chec
             ag_y = autograd.sum(ag_y)
         if check_grad:
             torch_y.backward()
-            ag_y.backward()
             if plot_graph:
                 build_and_draw_computation_graph(ag_y)
+            ag_y.backward()
     assert all([np.allclose(p_ag.value, p_torch.detach().numpy())
                for p_torch, p_ag in outputs])
     if check_grad:
@@ -117,7 +117,7 @@ def batched_nn_test():
     # We let also calculate the derivatives wrt. to the input to check whether we can calculate the gradient here correctly as well
     # Otherwise, we can apply partially x
     compare_ag_with_torch([[x, w1, b1, w2, b2, w3, b3]],
-                          three_layer_nn, three_layer_nn, check_grad=True)
+                          three_layer_nn, three_layer_nn, check_grad=True, plot_graph=True)
 
 
 def relu_test():
@@ -128,6 +128,23 @@ def relu_test():
 
     compare_ag_with_torch([[x], [x2]], relu_torch.forward,
                           relu.forward, check_grad=True)
+
+
+def test_shapes_coercing():
+    shape1 = (1, 1, 20, 1)
+    shape2 = (1,)
+    axes_to_sum_over = autograd._find_axes_over_which_to_sum(shape1, shape2)
+    assert axes_to_sum_over == [0, 1, 2]
+
+    shape1 = (1, 1, 20, 1)
+    shape2 = (20, 1)
+    axes_to_sum_over = autograd._find_axes_over_which_to_sum(shape1, shape2)
+    assert axes_to_sum_over == [0, 1]
+
+    shape1 = (1, 20)
+    shape2 = (20, 1)
+    axes_to_sum_over = autograd._find_axes_over_which_to_sum(shape1, shape2)
+    assert axes_to_sum_over == [0, 1]
 
 
 matrix_vector_multiplication_test()

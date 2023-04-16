@@ -64,6 +64,7 @@ python -m unittest
 - [] Fix global states in node if any
 - [] Impl leaky ReLU
 - [X] Fix NaNs
+- [] Make API-compatible with torch
 
 # Features
 

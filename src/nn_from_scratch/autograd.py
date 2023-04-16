@@ -4,6 +4,21 @@ import numpy as np
 from typing import Union, List, Optional
 
 
+def _find_axes_over_which_to_sum(bigger: tuple, smaller: tuple):
+    # This will throw an error if both shapes are not broadcastable
+    np.broadcast_shapes(bigger, smaller)
+    # Is shape size is not equal, broadcasting rule says we fill with ones. Thus the axes are all axes which do not exist one of the shapes
+    len_diff = len(bigger) - len(smaller)
+    assert len_diff >= 0, "First shape has to be bigger or equal the second shape"
+    # broadcast the smaller shape, insert 1 size axes
+    smaller = ([1] * len_diff) + list(smaller)
+    axes_to_sum_over = []
+    for i, (shape1_axis, shape2_axis) in enumerate(zip(bigger, smaller)):
+        if shape1_axis != shape2_axis:
+            axes_to_sum_over.append(i)
+    return axes_to_sum_over
+
+
 class Node:
     """
     Node in computation graph
@@ -64,6 +79,8 @@ class Tensor(Node):
                 self.is_batched = False
         else:
             self.is_batched = is_batched
+
+    def numpy(self): return self.value
 
     def backward(self, trace=False, profile=False):
         """
@@ -129,7 +146,19 @@ class Tensor(Node):
         """
         # Hint we use here < instead of comparing if we have one dimension more to catch the case where we have (30, 1, 1) and (1,) for example.
         # For this exact case we reshape also, to remove unnesecary 1 dim axes. Squeeze is not enough, a sometimes, the bias in the linear layer e.g. is (1, 20), in this case we do not want to squeeze this axis, we actually want the grad shape to match exactly the value shape
-        return {op_id: np.reshape(np.sum(acc_grad, axis=0), parents[op_id].value.shape) if parents[op_id].value.ndim < acc_grad.ndim else acc_grad for op_id, acc_grad in accumulated_gradient.items()}
+        out_dict = {}
+        for op_id, acc_grad in accumulated_gradient.items():
+            # TODO hack which saves compute but is actually here as we have not generalized summing over all broadcast axes yet: Don't do anything if we will not need the grad anyways
+            if not parents[op_id].requires_grad:
+                new_acc_grad = acc_grad
+            elif parents[op_id].value.ndim < acc_grad.ndim:
+                new_acc_grad = np.reshape(
+                    np.sum(acc_grad, axis=0), np.atleast_1d(parents[op_id].value).shape)
+            else:
+                new_acc_grad = acc_grad
+
+            out_dict[op_id] = new_acc_grad
+        return out_dict
 
     def _backprop_binary_ops(self, grad_output: np.ndarray):
         """

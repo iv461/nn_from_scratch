@@ -5,7 +5,7 @@ from nn_from_scratch.autograd import sum, mean, square
 
 def mse_loss(y_true: Tensor, y_pred: Tensor) -> Tensor:
     """Calculates the mean-squared loss in the same way as pytorch
-
+    TODO document further.
     Args:
         y_true (Tensor): 
         y_pred (Tensor): 
