@@ -4,21 +4,6 @@ import numpy as np
 from typing import Union, List, Optional
 
 
-def _find_axes_over_which_to_sum(bigger: tuple, smaller: tuple):
-    # This will throw an error if both shapes are not broadcastable
-    np.broadcast_shapes(bigger, smaller)
-    # Is shape size is not equal, broadcasting rule says we fill with ones. Thus the axes are all axes which do not exist one of the shapes
-    len_diff = len(bigger) - len(smaller)
-    assert len_diff >= 0, "First shape has to be bigger or equal the second shape"
-    # broadcast the smaller shape, insert 1 size axes
-    smaller = ([1] * len_diff) + list(smaller)
-    axes_to_sum_over = []
-    for i, (shape1_axis, shape2_axis) in enumerate(zip(bigger, smaller)):
-        if shape1_axis != shape2_axis:
-            axes_to_sum_over.append(i)
-    return axes_to_sum_over
-
-
 class Node:
     """
     Node in computation graph
@@ -38,7 +23,6 @@ class Node:
 
 
 class Tensor(Node):
-
     cnt = 0
 
     def __init__(self, value: np.ndarray, name: Optional[str] = None,
@@ -84,9 +68,11 @@ class Tensor(Node):
 
     def backward(self, trace=False, profile=False):
         """
-        Runs backpropagation algoritm and sets all the gradients for tensors requiring gradients.
+        Runs the backpropagation algorithm and sets all the gradients for tensors requiring gradients.
         It assumes that this tensor is scalar-valued.
         """
+
+        # Run a depth-first search 
         def dfs(node: Tensor):
             multiplied_grad = node._backprop(node.grad)
             for parent in node.parents:
@@ -216,7 +202,7 @@ class Tensor(Node):
                 x = op2.value
                 # In linear algebra, this would be an ordinary matrix-multiplication as the line below,
                 # but numpy throws an error when you try to matrix-multiply two vectors. So we have to explicitly specify the outer product.
-                # Another option would be np.outer.
+                # Another option would be to use np.outer.
                 # In numpy essentially you can't  calculate (A @ x) @ x.T given that x is a vector and A @ x is a valid matrix-multiplication.
                 # It seems PEP 465 does not consider outer product.
                 d_f_dA = grad_output[:, np.newaxis] @ x[np.newaxis, :]
@@ -338,7 +324,7 @@ def _max(op1: Tensor, op2: Union[Tensor, float]):
     if not (isinstance(op2, float) or isinstance(op2, Tensor)):
         raise Exception("")
     if isinstance(op2, float):
-        # TODO name, add ability to make unique names
+        # TODO  add ability to make unique names
         # Broadcast to be able to do max(np.array(...), 0)
         if not isinstance(op1.value, float):
             op2 = np.broadcast_to(op2, op1.value.shape)

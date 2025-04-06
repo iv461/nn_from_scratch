@@ -17,7 +17,7 @@ def train():
     interval = (-6, 4.5)
     batch_size = 20
     sample_size = 5 * batch_size
-    number_of_epochs = 10000
+    number_of_epochs = 3000
 
     x_values, y_values = create_training_data(
         f, interval=interval, sample_size=sample_size)

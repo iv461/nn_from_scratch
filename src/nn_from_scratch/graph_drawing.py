@@ -8,7 +8,7 @@ from nn_from_scratch.autograd import Tensor
 
 def build_networkx_graph(root_node: Tensor) -> nx.DiGraph:
     """
-    Builds a networkx computation graph from the tensor tree, for debug visualization.
+    Builds a networkx computation graph from the tensor tree, used for debug visualization.
     Args:
         root_node (Tensor): 
 

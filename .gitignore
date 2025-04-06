@@ -3,5 +3,6 @@
 .installed.cfg
 *.egg
 dist/
-__pycache__/
+*.pyc
+__pycache__/*
 build/

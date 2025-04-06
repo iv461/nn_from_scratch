@@ -102,7 +102,7 @@ class Linear(Module):
         weights_tensor_shape = (out_features, in_features)
         self.weight = Parameter("w", self.uniform_initializer(
             -k_sqrt, k_sqrt, weights_tensor_shape))
-        # We need to create a 2d array for the bias vector, a column vector, such that the broadcasting works correctly for batch-sized inputs
+        # We need to create a 2d array for the bias vector (a column vector) such that the broadcasting works correctly for batch-sized inputs
         self.bias = Parameter("b", self.uniform_initializer(-k_sqrt,
                                                             k_sqrt, (out_features, 1)))
 
@@ -111,7 +111,9 @@ class Linear(Module):
 
 
 class ReLU(Module):
-
+    """
+    The ReLU activation function.
+    """
     def __init__(self):
         super().__init__("ReLu")
 
@@ -121,7 +123,9 @@ class ReLU(Module):
 
 
 class Tanh(Module):
-
+    """
+    The Tanh activation functions.
+    """
     def __init__(self):
         super().__init__("Tanh")
 
